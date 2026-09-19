@@ -1,0 +1,114 @@
+{
+  "_source": "（ここに自分の Figma ファイル名と fileKey を書く）。値は Figma が正。変えたらこのファイルに書き出し直す。",
+  "_exported": "YYYY-MM-DD",
+  "theme_name": "（テーマ名）",
+  "colors": {
+    "dk1": "RRGGBB",
+    "lt1": "RRGGBB",
+    "dk2": "RRGGBB",
+    "lt2": "RRGGBB",
+    "accent1": "RRGGBB",
+    "accent2": "RRGGBB",
+    "accent3": "RRGGBB",
+    "accent4": "RRGGBB",
+    "accent5": "RRGGBB",
+    "accent6": "RRGGBB",
+    "hlink": "RRGGBB",
+    "folHlink": "RRGGBB"
+  },
+  "font": {
+    "family": "Noto Sans JP"
+  },
+  "slide": {
+    "width_emu": 9144000,
+    "height_emu": 5143500,
+    "width_in": 10,
+    "height_in": 5.625,
+    "figma_frame_px": [
+      1440,
+      810
+    ],
+    "px_per_pt": 2,
+    "_note": "Google スライド標準の 16:9 と同じ。Figma のフレームは 1440x810（2px=1pt）"
+  },
+  "type_pptx": {
+    "_note": "本文サイズ × 比率^n。役割ごとの pt とウェイト",
+    "ratio": 1.25,
+    "roles": {
+      "cover": {
+        "pt": 0,
+        "weight": "Regular|Bold"
+      },
+      "section": {
+        "pt": 0,
+        "weight": "Regular|Bold"
+      },
+      "title": {
+        "pt": 0,
+        "weight": "Regular|Bold"
+      },
+      "lead": {
+        "pt": 0,
+        "weight": "Regular|Bold"
+      },
+      "body": {
+        "pt": 0,
+        "weight": "Regular|Bold"
+      },
+      "caption": {
+        "pt": 0,
+        "weight": "Regular|Bold"
+      },
+      "min": {
+        "pt": 0,
+        "weight": "Regular|Bold"
+      }
+    }
+  },
+  "type_docx": {
+    "_note": "Word は画面で読む前提。本文は PowerPoint より小さく",
+    "ratio": 1.2,
+    "roles": {
+      "title": {
+        "pt": 0,
+        "weight": "Regular|Bold",
+        "line": 140
+      },
+      "subtitle": {
+        "pt": 0,
+        "weight": "Regular|Bold",
+        "line": 140
+      },
+      "h1": {
+        "pt": 0,
+        "weight": "Regular|Bold",
+        "line": 140
+      },
+      "h2": {
+        "pt": 0,
+        "weight": "Regular|Bold",
+        "line": 140
+      },
+      "h3": {
+        "pt": 0,
+        "weight": "Regular|Bold",
+        "line": 140
+      },
+      "body": {
+        "pt": 0,
+        "weight": "Regular|Bold",
+        "line": 140
+      },
+      "caption": {
+        "pt": 0,
+        "weight": "Regular|Bold",
+        "line": 140
+      },
+      "table": {
+        "pt": 0,
+        "weight": "Regular|Bold",
+        "line": 140
+      }
+    }
+  }
+}
