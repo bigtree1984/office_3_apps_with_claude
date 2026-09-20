@@ -58,6 +58,49 @@ def table(rows, x, y, w, col_w=None, row_h=56, first_col=True, band=True, body_a
             f'<a:tbl>{look}<a:tblGrid>{grid}</a:tblGrid>{trs}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>')
 
 
+# ---------------------------------------------------------------- ガント（表＋図形バーのハイブリッド）
+# 背景の格子・属性列は PowerPoint の表で作る（行の追加や列幅の調整を人が普通にできる）。
+# バーだけ図形を重ねる（期間を自由な位置に置け、継続中は右端を尖らせられる）。
+GANTT_MONTHS = ["7月", "8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月"]
+GANTT_ROWS = [  # (タスク, 担当, 状態, 開始, 終了, 色, 継続中か)
+    ("連載 #1〜#3 執筆", "だいき", "完了", 0, 3, "accent1", False),
+    ("Office テンプレート開発", "だいき", "進行中", 2, 5, "accent1", False),
+    ("連載 #4〜#6 執筆", "だいき", "予定", 4, 7, "accent1", False),
+    ("社内展開", "ZENITHA", "未着手", 6, 9, "accent6", True),
+]
+
+
+def gantt(x, y, w, attr_w=(340, 120, 120), row_h=56):
+    month_w = (w - sum(attr_w)) / len(GANTT_MONTHS)
+    rows = [["タスク", "担当", "状態"] + GANTT_MONTHS]
+    for name, owner, state, *_ in GANTT_ROWS:
+        rows.append([name, owner, state] + [""] * len(GANTT_MONTHS))
+    shapes = [table(rows, x, y, w, list(attr_w) + [month_w] * len(GANTT_MONTHS), row_h=row_h, body_align="l")]
+    bar_h = row_h * 0.5
+    for i, (name, owner, state, s, e, color, ongoing) in enumerate(GANTT_ROWS):
+        bx = x + sum(attr_w) + month_w * s + 4
+        by = y + row_h * (i + 1) + (row_h - bar_h) / 2
+        bw = month_w * (e - s) - 8
+        if ongoing:   # 継続中：右端を尖らせる（シェブロン）
+            tip = min(16, bw / 4)
+            path = (f'<a:moveTo><a:pt x="0" y="0"/></a:moveTo>'
+                    f'<a:lnTo><a:pt x="{e_(bw - tip)}" y="0"/></a:lnTo>'
+                    f'<a:lnTo><a:pt x="{e_(bw)}" y="{e_(bar_h / 2)}"/></a:lnTo>'
+                    f'<a:lnTo><a:pt x="{e_(bw - tip)}" y="{e_(bar_h)}"/></a:lnTo>'
+                    f'<a:lnTo><a:pt x="0" y="{e_(bar_h)}"/></a:lnTo><a:close/>')
+            geom = (f'<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/>'
+                    f'<a:pathLst><a:path w="{e_(bw)}" h="{e_(bar_h)}">{path}</a:path></a:pathLst></a:custGeom>')
+        else:
+            geom = '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+        shapes.append(
+            f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="Bar_{i + 1}_{name}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
+            f'<p:spPr>{bpf.xfrm([bx, by, bw, bar_h])}{geom}{bpf.clr(color)}<a:ln><a:noFill/></a:ln></p:spPr></p:sp>')
+    return shapes
+
+
+e_ = lambda px: bpf.e(px)
+
+
 def main():
     body = next(l for l in bpf.SPEC["layouts"] if l["name"] == "06_本文")
     it = {i["name"]: i for i in body["items"]}
@@ -67,15 +110,16 @@ def main():
     prels = f["ppt/_rels/presentation.xml.rels"].decode()
     n = len([k for k in f if re.match(r"ppt/slides/slide\d+\.xml$", k)])
     layout_no = [l["name"] for l in bpf.SPEC["layouts"]].index("06_本文") + 1
-    slides = [(DATA_TABLE, "記事別の PV とスキ（2026年9月）", "連載 #3 が PV・スキとも最も多い",
+    slides = [(DATA_TABLE, "記事別の読まれ方", "連載 #3 が PV・スキとも最も多い",
                [560, 140, 200, 180, 216], "r"),        # numbers: right aligned
-              (COMPARE, "3つの書き方を比べる", "速さと一次情報は両立できる", None, "ctr")]  # words: centered
+              (COMPARE, "3つの書き方の違い", "速さと一次情報は両立できる", None, "ctr")]  # words: centered
+    slides.append((None, "Office テンプレート開発の進め方", "9月で開発は一区切り。10月以降は連載と社内展開", None, None))
     for i, (rows, title, lead, col_w, body_align) in enumerate(slides, 1):
         bp._id[0] = 1
-        tbl = table(rows, cx, cy + 16, cw, col_w, body_align=body_align)
+        content = gantt(cx, cy + 16, cw) if rows is None else [table(rows, cx, cy + 16, cw, col_w, body_align=body_align)]
         shapes = [bpf.placeholder({**it["Title"], "text": title}, on_slide=True),
                   bpf.placeholder({**it["Lead"], "text": lead}, on_slide=True),
-                  tbl,
+                  *content,
                   bpf.placeholder(it["SlideNumber"], on_slide=True)]
         sn = n + i
         f[f"ppt/slides/slide{sn}.xml"] = (bp.XML + f'<p:sld {bp.NS}><p:cSld>{bp.sptree(shapes)}</p:cSld>'

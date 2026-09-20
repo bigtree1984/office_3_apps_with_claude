@@ -42,6 +42,10 @@ CHARTS = [
          cats=["W35", "W36", "W37", "W38"],
          series=[("広告経由", [5200, 5600, 5400, 6100]), ("自然流入", [7280, 7502, 7555, 8130])],
          highlight=None, pale=True, point=("広告経由", "W38")),  # everything pale, one data point solid + outlined
+    dict(name="graph4", data="data4", kind="bar100", title="流入元の構成比（2026/09）", fmt="0%",
+         cats=["2026/09"],
+         series=[("検索", [0.58]), ("SNS", [0.21]), ("note 内", [0.13]), ("その他", [0.08])],
+         highlight=None),   # 100% 積み上げ横棒。構成比は図形ではなくグラフで作る（データだから）
 ]
 
 PALE = '<a:lumMod val="40000"/><a:lumOff val="60000"/>'  # theme tint, stays linked to the palette
@@ -93,7 +97,10 @@ def chart_xml(ch, sheet, embedded):
                  + "".join(f'<c:pt idx="{i}"><c:v>{v}</c:v></c:pt>' for i, v in enumerate(vals))
                  + '</c:numCache></c:numRef></c:val>'
                  + ('<c:smooth val="0"/>' if ch["kind"] == "line" else "") + '</c:ser>')
-    if ch["kind"] == "bar":
+    if ch["kind"] == "bar100":   # 100% 積み上げ横棒（構成比）
+        plot = (f'<c:barChart><c:barDir val="bar"/><c:grouping val="percentStacked"/><c:varyColors val="0"/>{sers}'
+                '<c:gapWidth val="60"/><c:overlap val="100"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
+    elif ch["kind"] == "bar":
         plot = (f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>{sers}'
                 '<c:gapWidth val="80"/><c:overlap val="-10"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
     else:
@@ -101,12 +108,14 @@ def chart_xml(ch, sheet, embedded):
                 '<c:marker val="1"/><c:axId val="1001"/><c:axId val="1002"/></c:lineChart>')
     grid = '<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:schemeClr val="bg2"><a:lumMod val="90000"/></a:schemeClr></a:solidFill></a:ln></c:spPr></c:majorGridlines>'
     noline = '<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
-    axes = ('<c:catAx><c:axId val="1001"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/>'
-            '<c:axPos val="b"/><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>'
+    horiz = ch["kind"] == "bar100"
+    axes = ('<c:catAx><c:axId val="1001"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
+            f'<c:delete val="{1 if horiz else 0}"/>'
+            f'<c:axPos val="{"l" if horiz else "b"}"/><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>'
             '<c:tickLblPos val="nextTo"/><c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="tx2"/></a:solidFill></a:ln></c:spPr>'
             + TXT.format(sz=1000, clr="tx2") + '<c:crossAx val="1002"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'
             '<c:valAx><c:axId val="1002"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/>'
-            f'<c:axPos val="l"/>{grid}<c:numFmt formatCode="{ch["fmt"]}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>'
+            f'<c:axPos val="{"b" if horiz else "l"}"/>{grid}<c:numFmt formatCode="{ch["fmt"]}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>'
             f'<c:tickLblPos val="nextTo"/>{noline}' + TXT.format(sz=1000, clr="tx2")
             + '<c:crossAx val="1001"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx>')
     legend = '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=1000, clr="tx1") + '</c:legend>'
