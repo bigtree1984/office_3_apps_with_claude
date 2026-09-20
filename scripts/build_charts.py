@@ -89,14 +89,30 @@ TXT = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{sz}"><a:solid
        '<a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/></a:defRPr></a:pPr><a:endParaRPr lang="ja-JP"/></a:p></c:txPr>')
 
 
+
+def label_on(fill):
+    """塗りの上に置く文字の色を、塗りの明るさから決める（濃い色なら白抜き）。
+
+    色は tokens.json の実際の値で判定する。パレットを変えれば判定も追従する。
+    しきい値 0.18 は「白文字と黒文字のコントラストが入れ替わる明るさ」（WCAG の計算式から）。
+    中間のグレー（accent4）は黒文字のほうが読めるので、ここで切り分かれる。
+    """
+    hexv = build_potx.COLORS.get(fill, "000000")
+    r, g, b = (int(hexv[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    def lin(c):
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    return "lt1" if lum < 0.18 else "tx1"
+
+
 def dlbls(kind, n, highlighted, fmt, clr="tx1"):
     """値ラベル（CHART_RULES.md §3）。棒は6カテゴリ以下なら全点、折れ線は両端だけ。"""
     txt = TXT.format(sz=SZ, clr="tx1")
     if kind in ("bar", "barh") and n <= 6:
         return (f'<c:dLbls>{txt}<c:dLblPos val="outEnd"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
-    if kind == "bar100":   # 帯の中に % を置く
-        return (f'<c:dLbls>{TXT.format(sz=SZ, clr="tx1")}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
+    if kind == "bar100":   # 帯の中に % を置く。文字色は帯の色から決める
+        return (f'<c:dLbls>{TXT.format(sz=SZ, clr=clr)}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     if kind == "waterfall":
         if highlighted:   # 土台には出さない
@@ -201,9 +217,11 @@ def chart_xml(ch, sheet, embedded):
             clr, w = ("accent6", 34925) if sname == ch["highlight"] else ("accent4", 19050)
             sppr = (f'<c:spPr><a:ln w="{w}" cap="rnd"><a:solidFill><a:schemeClr val="{clr}"/></a:solidFill><a:round/></a:ln></c:spPr>')
         marker = '<c:marker><c:symbol val="circle"/><c:size val="6"/></c:marker>' if line_like else ""
+        auto_fill = f"accent{si + 1}"            # 色を指定しない系列は accent1 から順に当たる
+        lbl_clr = "lt1" if kind == "waterfall" else label_on(auto_fill)
         lbl = dlbls("combo-line" if line_like else kind, n,
                     (si == 0) if kind == "waterfall" else (sname == ch.get("highlight")), fmt,
-                    clr="lt1")
+                    clr=lbl_clr)
         series_xml.append(
             f'<c:ser><c:idx val="{si}"/><c:order val="{si}"/>'
             f'<c:tx><c:strRef><c:f>{q}!${c}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>{esc(sname)}</c:v></c:pt></c:strCache></c:strRef></c:tx>'
