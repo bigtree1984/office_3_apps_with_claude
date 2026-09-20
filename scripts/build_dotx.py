@@ -39,6 +39,7 @@ TEXT_W = PAGE_W - 2 * MARGIN
 DOCX = build_potx._TOKENS["type_docx"]["roles"]
 COLORS = build_potx.COLORS
 BODY_SZ = int(DOCX["body"]["pt"] * 2)  # half-points
+E_IND = 420   # 1 字ぶんの字下げ（twips, 本文 10.5pt）
 
 
 def sz(role):
@@ -113,6 +114,10 @@ def styles(grid_on):
         pstyle("Footer", "footer", f'<w:tabs><w:tab w:val="right" w:pos="{TEXT_W}"/></w:tabs>{line("caption")}',
                role_rpr("caption", "text2"), nxt=None),
         # 図: line spacing must stay "auto" — an exact line height clips inline images to that height
+        pstyle("TOCHeading", "TOC Heading", f'{snap}{line("h1", after=120, before=240)}', role_rpr("h1", "accent1", major=True), nxt="Normal"),
+        pstyle("TOC1", "toc 1", f'{snap}{line("body", after=60)}<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="{TEXT_W}"/></w:tabs>'),
+        pstyle("TOC2", "toc 2", f'{snap}{line("body", after=40)}<w:ind w:left="{E_IND}"/>'),
+        pstyle("TOC3", "toc 3", f'{snap}{line("body", after=40)}<w:ind w:left="{E_IND * 2}"/>'),
         pstyle("FigureBlock", "図", f'{snap}<w:keepNext/><w:spacing w:before="120" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="center"/>', nxt="Caption"),
         pstyle("TableText", "表内テキスト", f'{snap}{line("table")}<w:jc w:val="left"/>', role_rpr("table", "text1"), nxt="TableText"),
         # character styles: meaning, not appearance
@@ -121,6 +126,8 @@ def styles(grid_on):
         cstyle("Figure", "数値", f'<w:b/><w:bCs/><w:sz w:val="{sz("h3")}"/><w:szCs w:val="{sz("h3")}"/>'),
         ('<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:uiPriority w:val="99"/>'
          f'<w:unhideWhenUsed/><w:rPr>{color("hyperlink", COLORS["hlink"])}<w:u w:val="single"/></w:rPr></w:style>'),
+        ('<w:style w:type="character" w:styleId="PlaceholderText"><w:name w:val="Placeholder Text"/>'
+         f'<w:semiHidden/><w:rPr>{color("text2", COLORS["dk2"])}</w:rPr></w:style>'),
         ('<w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/>'
          '<w:uiPriority w:val="1"/><w:semiHidden/><w:unhideWhenUsed/></w:style>'),
         ('<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/>'
@@ -178,6 +185,8 @@ def settings():
     return (XML + f'<w:settings {W_NS}>'
             '<w:view w:val="web"/><w:zoom w:percent="100"/>'
             '<w:embedTrueTypeFonts/>'
+            # <w:updateFields> は入れない：開くたびに「他のファイルを参照するフィールド…」という
+            # 分かりにくいダイアログが出るため。目次の中身は Claude が生成時に書き込む。
             '<w:defaultTabStop w:val="420"/>'                       # 2 chars at 10.5pt
             '<w:characterSpacingControl w:val="compressPunctuation"/>'  # 約物の詰め
             '<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>'
@@ -246,6 +255,25 @@ def field(instr, placeholder):
             f'<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>{placeholder}</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>')
 
 
+def sdt(alias, tag, text, style=None, placeholder=True):
+    """入力枠（コンテンツコントロール）。クリックすると案内文が消えて入力できる。"""
+    ppr = f'<w:pPr><w:pStyle w:val="{style}"/></w:pPr>' if style else ""
+    ph = '<w:showingPlcHdr/>' if placeholder else ""
+    rpr = '<w:rPr><w:rStyle w:val="PlaceholderText"/></w:rPr>' if placeholder else ""
+    return (f'<w:sdt><w:sdtPr><w:alias w:val="{alias}"/><w:tag w:val="{tag}"/><w:id w:val="{abs(hash(tag)) % 90000000}"/>'
+            f'{ph}<w:text/></w:sdtPr><w:sdtContent><w:p>{ppr}<w:r>{rpr}<w:t xml:space="preserve">{esc(text)}</w:t></w:r></w:p></w:sdtContent></w:sdt>')
+
+
+def toc(levels="1-2", page_numbers=False):
+    """目次。見出しスタイルから自動生成される。既定は見出し1〜2まで（3まで拾うと長くなる）。
+    Web レイアウト前提なのでページ番号は出さない。クリックで本文へ飛べる（\\h）。"""
+    instr = f' TOC \\o "{levels}" \\h \\z \\u' + ("" if page_numbers else " \\n")
+    return (p_style("TOCHeading", "目次")
+            + '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr>'
+            + field(instr, "［ここに目次が入ります。右クリック →「フィールド更新」］")
+            + '</w:p>')
+
+
 def table(rows):
     ncol = len(rows[0])
     colw = TEXT_W // ncol
@@ -286,9 +314,17 @@ def footer():
             + '</w:p></w:ftr>')
 
 
+def cover():
+    """表紙。項目は PowerPoint の表紙と同じ（区分・宛先・タイトル・サブタイトル・日付/作成者）。"""
+    return (sdt("資料の区分", "classification", "公開用 ｜ ドラフト", "Caption")
+            + sdt("宛先", "recipient", "〇〇〇〇 御中", "Normal")
+            + sdt("タイトル", "title", "文書タイトル", "Title")
+            + sdt("サブタイトル", "subtitle", "サブタイトル", "Subtitle")
+            + sdt("日付・作成者", "meta", "2026-00-00 ｜ 所属 ｜ 作成者", "Caption"))
+
+
 def body_template():
-    return (p_style("Title", "文書タイトル") + p_style("Subtitle", "サブタイトル ｜ 日付 ｜ 作成者")
-            + p_style("Heading1", "見出し1") + para("本文をここに書きます。"))
+    return (cover() + toc() + p_style("Heading1", "見出し1") + para("本文をここに書きます。"))
 
 
 def body_sample(img_rid, img_cx, img_cy):
@@ -296,8 +332,12 @@ def body_sample(img_rid, img_cx, img_cy):
              "本レポートでは、直近 4 週間のセッション数・CVR・広告費用対効果（ROAS）の推移をまとめ、"
              "次の打ち手を提案する。数値はすべて税抜・速報値である。")
     return "".join([
-        p_style("Title", "Claude Code 製 DOTX テスト"),
-        p_style("Subtitle", "XML を直接書いて組み立てた Word テンプレート ｜ 2026-09-19 ｜ Bigtree Lab"),
+        sdt("資料の区分", "classification", "公開用 ｜ ドラフト", "Caption", placeholder=False),
+        sdt("宛先", "recipient", "だいきの試作室　読者のみなさまへ", "Normal", placeholder=False),
+        sdt("タイトル", "title", "note トラフィックレポート", "Title", placeholder=False),
+        sdt("サブタイトル", "subtitle", "2026年9月の読まれ方と次の一手", "Subtitle", placeholder=False),
+        sdt("日付・作成者", "meta", "2026-09-20 ｜ Bigtree Lab ｜ だいき君", "Caption", placeholder=False),
+        toc(),
         p_style("Heading1", "背景"),
         para(lorem),
         para(run("この段落には文字スタイルを当てている。") + run("強調したい語句", "Emph") + run("、")
