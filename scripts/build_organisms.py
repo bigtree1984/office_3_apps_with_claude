@@ -102,6 +102,12 @@ SLIDES = [  # (organism, title, lead)  タイトルは論点、リード文で�
     ("O-B14 人物紹介", "この連載の登場人物", "読者は非エンジニアが中心"),
 ]
 
+# 構造レイアウト（04 構造 Light / 05 構造 Dark）に置く Organism。リード文が無く、見出しだけが上にある
+STRUCTURE_SLIDES = [  # (organism, layout, title)
+    ("O-S1 目次", "04_構造_Light", "目次"),
+    ("O-S2 写真ギャラリー", "04_構造_Light", "9月の記録"),
+]
+
 
 def main():
     body = next(l for l in bpf.SPEC["layouts"] if l["name"] == "06_本文")
@@ -127,6 +133,24 @@ def main():
         rid = f"rIdOrg{i}"
         prels = bc.add_rel(prels, rid, "slide", f"slides/slide{sn}.xml")
         pres = pres.replace("</p:sldIdLst>", f'<p:sldId id="{400 + i}" r:id="{rid}"/></p:sldIdLst>')
+        ct = bc.add_override(ct, f"/ppt/slides/slide{sn}.xml", f"{bp.CT}.presentationml.slide+xml")
+    # 構造レイアウト（目次・写真ギャラリー）。リード文が無く、見出しの下がそのまま本文エリア
+    for j, (oname, layout_name, title) in enumerate(STRUCTURE_SLIDES, 1):
+        spec = next(l for l in bpf.SPEC["layouts"] if l["name"] == layout_name)
+        sit = {i["name"]: i for i in spec["items"]}
+        org = ORG[oname]
+        bp._id[0] = 1
+        shapes = [bpf.placeholder({**sit["Title"], "text": title}, on_slide=True),
+                  group(oname, org, 72, 152),
+                  bpf.placeholder(sit["SlideNumber"], on_slide=True)]
+        sn = n + len(SLIDES) + j
+        f[f"ppt/slides/slide{sn}.xml"] = (bp.XML + f'<p:sld {bp.NS}><p:cSld>{bp.sptree(shapes)}</p:cSld>'
+                                          '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>').encode()
+        lno = [l["name"] for l in bpf.SPEC["layouts"]].index(layout_name) + 1
+        f[f"ppt/slides/_rels/slide{sn}.xml.rels"] = bpf.rels_xml([(bpf.R("slideLayout"), f"../slideLayouts/slideLayout{lno}.xml")]).encode()
+        rid = f"rIdStruct{j}"
+        prels = bc.add_rel(prels, rid, "slide", f"slides/slide{sn}.xml")
+        pres = pres.replace("</p:sldIdLst>", f'<p:sldId id="{450 + j}" r:id="{rid}"/></p:sldIdLst>')
         ct = bc.add_override(ct, f"/ppt/slides/slide{sn}.xml", f"{bp.CT}.presentationml.slide+xml")
     f["[Content_Types].xml"], f["ppt/presentation.xml"], f["ppt/_rels/presentation.xml.rels"] = ct.encode(), pres.encode(), prels.encode()
     out = OUT / "bigtree_lab_organisms.pptx"
