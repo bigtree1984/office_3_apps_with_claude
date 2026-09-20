@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_potx as bp  # noqa: E402  (theme, EOT embedding, guides helper)
+import fit_text as ft  # noqa: E402  (はみ出し警告)
 
 ROOT = Path(__file__).resolve().parent.parent
 BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # brand values (tokens, assets, templates)
@@ -149,6 +150,9 @@ def ph_attr(item):
 
 def placeholder(item, on_slide=False, content=None, master=False):
     attr = ph_attr(item)
+    # 折り返しをオフにしてあるので、長すぎる文字は枠の外へ出る。作った時点で気づけるように警告する
+    if item.get("text") and item["ph"] not in ("obj", "sldNum"):
+        ft.warn(item["text"], item["style"], item["box"][2], where=item["name"])
     if on_slide:  # a slide inherits position/format from the layout
         body = content if content is not None else paras(item.get("text", ""))
         if item["ph"] == "sldNum":

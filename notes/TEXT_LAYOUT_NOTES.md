@@ -59,3 +59,24 @@ PowerPoint 側でテキストボックスを縦中央にしてあるので、Fig
 
 実際、13個の Organism のうち5個・24か所でずれていた（1〜4px）。小さいが、拡大すると気づく。
 **Figma を直してから、書き出し済みの JSON にも同じ計算を適用する**（順序を逆にすると SSOT がずれる）。
+
+## 6. 折り返しをオフにした以上、文字数の上限は「測って」決める
+
+折り返しをオフ（`wrap="none"`）にすると、長い文章は**静かに枠の外へ出る**。
+PowerPoint は警告してくれないので、実際の運用レポートで1行だけ画面外へはみ出していた。
+
+上限は感覚ではなく、**フォントの字送り（advance width）から計算できる**。
+
+```python
+from fontTools.ttLib import TTFont
+f = TTFont("NotoSansJP-Bold.ttf")
+upm = f["head"].unitsPerEm
+w = sum(f["hmtx"][f.getBestCmap()[ord(c)]][0] for c in text) / upm * pt   # 表示幅（pt）
+```
+
+Noto Sans JP では、全角＝1.000em、半角英数＝0.568em（Bold 0.600em）、半角スペース＝0.224em。
+これで `scripts/fit_text.py` を作り、`placeholder()` から呼んで**生成時に警告**するようにした。
+上限の表は `bigtree/design/CONTENT_RULES.md` §8。
+
+学び：**書式の既定を変えたら、その副作用を検出する仕組みもセットで作る。**
+折り返しオフは見た目のための判断だが、そのぶん「はみ出しに気づけない」という穴が開く。

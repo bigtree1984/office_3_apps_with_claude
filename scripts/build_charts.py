@@ -54,6 +54,10 @@ CHARTS = [  # fmt2 は複合グラフの第2軸の書式
          cats=["W35", "W36", "W37", "W38"],
          series=[("セッション（件）", [12480, 13102, 12955, 14230]), ("CVR（%）", [0.021, 0.023, 0.024, 0.022])],
          highlight="CVR（%）", unit2=0.005),   # 棒＝量（グレー）、折れ線＝率（強調色）。2軸
+    dict(name="graph6", data="data6", kind="waterfall", title="セッションの増減内訳（8月→9月）", fmt="#,##0",
+         steps=[("8月", 12480, "total"), ("検索", 1340, ""), ("SNS", -620, ""),
+                ("内部リンク", 340, ""), ("その他", 690, ""), ("9月", 14230, "total")],
+         highlight=None),   # 積み上げ棒＋透明な土台。増減の理由を1枚で見せる
 ]
 
 PALE = '<a:lumMod val="40000"/><a:lumOff val="60000"/>'  # theme tint, stays linked to the palette
@@ -77,7 +81,7 @@ TXT = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{sz}"><a:solid
        '<a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/></a:defRPr></a:pPr><a:endParaRPr lang="ja-JP"/></a:p></c:txPr>')
 
 
-def dlbls(kind, n, highlighted, fmt):
+def dlbls(kind, n, highlighted, fmt, clr="tx1"):
     """値ラベル（CHART_RULES.md §3）。棒は6カテゴリ以下なら全点、折れ線は両端だけ。"""
     txt = TXT.format(sz=SZ, clr="tx1")
     if kind == "bar" and n <= 6:
@@ -85,6 +89,11 @@ def dlbls(kind, n, highlighted, fmt):
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     if kind == "bar100":   # 帯の中に % を置く
         return (f'<c:dLbls>{TXT.format(sz=SZ, clr="tx1")}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
+                '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
+    if kind == "waterfall":
+        if highlighted:   # 土台には出さない
+            return ""
+        return (f'<c:dLbls>{TXT.format(sz=SZ, clr=clr)}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     if kind in ("line", "combo-line"):
         # 直接ラベル：最後の点に「系列名＋値」。強調系列は最初の点にも値を出す
@@ -100,8 +109,43 @@ def dlbls(kind, n, highlighted, fmt):
     return ""
 
 
+
+# ---------------------------------------------------------------- ウォーターフォール
+WF_FILL = {"増加": "accent1", "減少": "accent3", "合計": "tx1"}
+
+
+def waterfall(steps):
+    """[(ラベル, 値, 種別)] を「土台＋増加＋減少＋合計」の4系列に展開する。
+
+    種別が "total" の行は 0 から積み、それ以外は直前の到達点からの増減として積む。
+    土台は塗りなしにするので、浮いた棒に見える（Office 2013 以降の標準的な作り方）。
+    """
+    cats, base, up, down, total, run = [], [], [], [], [], 0
+    for label, v, kind in steps:
+        cats.append(label)
+        if kind == "total":
+            run = v
+            base.append(0); up.append(None); down.append(None); total.append(v)
+        else:
+            lo = min(run, run + v)
+            base.append(lo)
+            up.append(v if v >= 0 else None)
+            down.append(-v if v < 0 else None)
+            total.append(None)
+            run += v
+    return cats, [("土台", base), ("増加", up), ("減少", down), ("合計", total)]
+
+
+def normalize(ch):
+    """ウォーターフォールは steps から系列を作る（Excel 側と同じ数字になるよう、ここで一度だけ）。"""
+    if ch["kind"] == "waterfall" and "series" not in ch:
+        ch["cats"], ch["series"] = waterfall(ch["steps"])
+    return ch
+
+
 def chart_xml(ch, sheet, embedded):
     ch.setdefault("fmt2", None)
+    normalize(ch)
     """CHART_RULES.md に沿ってグラフ XML を組み立てる。kind: bar / line / bar100 / combo"""
     n = len(ch["cats"])
     kind = ch["kind"]
@@ -123,6 +167,9 @@ def chart_xml(ch, sheet, embedded):
                 dpt = (f'<c:dPt><c:idx val="{pi}"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/>'
                        f'<c:spPr><a:solidFill><a:schemeClr val="accent{si + 1}"/></a:solidFill>'
                        '<a:ln w="28575"><a:solidFill><a:schemeClr val="accent6"/></a:solidFill></a:ln></c:spPr></c:dPt>')
+        elif kind == "waterfall":   # 土台は透明、増加＝accent1、減少＝グレー、合計＝濃色
+            fill = "<a:noFill/>" if si == 0 else f'<a:solidFill><a:schemeClr val="{WF_FILL[sname]}"/></a:solidFill>'
+            sppr = f'<c:spPr>{fill}<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val="0"/>'
         elif kind == "combo":       # 棒＝量はグレー、折れ線＝率は強調色
             sppr = ('<c:spPr><a:ln w="34925" cap="rnd"><a:solidFill><a:schemeClr val="accent6"/></a:solidFill><a:round/></a:ln></c:spPr>'
                     if si else '<c:spPr><a:solidFill><a:schemeClr val="accent4"/></a:solidFill><a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val="0"/>')
@@ -130,13 +177,15 @@ def chart_xml(ch, sheet, embedded):
             clr, w = ("accent6", 34925) if sname == ch["highlight"] else ("accent4", 19050)
             sppr = (f'<c:spPr><a:ln w="{w}" cap="rnd"><a:solidFill><a:schemeClr val="{clr}"/></a:solidFill><a:round/></a:ln></c:spPr>')
         marker = '<c:marker><c:symbol val="circle"/><c:size val="6"/></c:marker>' if line_like else ""
-        lbl = dlbls("combo-line" if line_like else kind, n, sname == ch.get("highlight"), fmt)
+        lbl = dlbls("combo-line" if line_like else kind, n,
+                    (si == 0) if kind == "waterfall" else (sname == ch.get("highlight")), fmt,
+                    clr="lt1")
         series_xml.append(
             f'<c:ser><c:idx val="{si}"/><c:order val="{si}"/>'
             f'<c:tx><c:strRef><c:f>{q}!${c}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>{esc(sname)}</c:v></c:pt></c:strCache></c:strRef></c:tx>'
             f'{sppr}{marker}{dpt}{lbl}{cat_ref}'
             f'<c:val><c:numRef><c:f>{q}!${c}$2:${c}${n + 1}</c:f><c:numCache><c:formatCode>{fmt}</c:formatCode><c:ptCount val="{n}"/>'
-            + "".join(f'<c:pt idx="{i}"><c:v>{v}</c:v></c:pt>' for i, v in enumerate(vals))
+            + "".join(f'<c:pt idx="{i}"><c:v>{v}</c:v></c:pt>' for i, v in enumerate(vals) if v is not None)
             + '</c:numCache></c:numRef></c:val>'
             + ('<c:smooth val="0"/>' if line_like else "") + '</c:ser>')
     sers = "".join(series_xml)
@@ -146,6 +195,9 @@ def chart_xml(ch, sheet, embedded):
                 '<c:gapWidth val="80"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>'
                 f'<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>{series_xml[1]}'
                 '<c:marker val="1"/><c:axId val="1003"/><c:axId val="1004"/></c:lineChart>')
+    elif kind == "waterfall":
+        plot = (f'<c:barChart><c:barDir val="col"/><c:grouping val="stacked"/><c:varyColors val="0"/>{sers}'
+                '<c:gapWidth val="60"/><c:overlap val="100"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
     elif kind == "bar100":
         plot = (f'<c:barChart><c:barDir val="bar"/><c:grouping val="percentStacked"/><c:varyColors val="0"/>{sers}'
                 '<c:gapWidth val="60"/><c:overlap val="100"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
@@ -160,7 +212,7 @@ def chart_xml(ch, sheet, embedded):
     noline = '<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
     horiz = kind == "bar100"
     # 値ラベルを出した棒グラフは、縦軸の目盛りを消す（軸かラベルのどちらか一方）
-    val_deleted = 1 if (kind == "bar" and n <= 6) else 0
+    val_deleted = 1 if (kind == "bar" and n <= 6) or kind == "waterfall" else 0
     def cat_ax(axid, crossax, delete=0):
         return ('<c:catAx><c:axId val="%s"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
                 '<c:delete val="%s"/><c:axPos val="%s"/><c:numFmt formatCode="General" sourceLinked="1"/>'
@@ -168,11 +220,11 @@ def chart_xml(ch, sheet, embedded):
                 '<c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="tx2"/></a:solidFill></a:ln></c:spPr>%s'
                 '<c:crossAx val="%s"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'
                 % (axid, delete, "l" if horiz else "b", TXT.format(sz=SZ, clr="tx2"), crossax))
-    def val_ax(axid, crossax, fmt, delete=0, crosses="autoZero", show_grid=True, zero=False, unit=None, maxv=None):
+    def val_ax(axid, crossax, fmt, delete=0, crosses="autoZero", show_grid=True, zero=False, unit=None, maxv=None, minv=None):
         # 棒は必ず 0 起点（CHART_RULES.md §1）。100%積み上げは 0〜100% に固定する
         # （自動任せだと「91%〜100%」のように途中から始まり、棒の長さが割合と合わなくなる）
         scaling = ('<c:orientation val="minMax"/>' + (f'<c:max val="{maxv}"/>' if maxv is not None else "")
-                   + ('<c:min val="0"/>' if zero else ""))
+                   + (f'<c:min val="{minv}"/>' if minv is not None else ('<c:min val="0"/>' if zero else "")))
         return ('<c:valAx><c:axId val="%s"/><c:scaling>%s</c:scaling><c:delete val="%s"/>'
                 '<c:axPos val="%s"/>%s<c:numFmt formatCode="%s" sourceLinked="0"/><c:majorTickMark val="none"/>'
                 '<c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>%s%s<c:crossAx val="%s"/><c:crosses val="%s"/>'
@@ -184,11 +236,20 @@ def chart_xml(ch, sheet, embedded):
         axes = (cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], zero=True)
                 + val_ax(1004, 1003, ch["fmt2"], crosses="max", show_grid=False, unit=ch.get("unit2"))
                 + cat_ax(1003, 1004, delete=1))
+    elif kind == "waterfall":
+        # 0 起点にすると増減が潰れて読めない。増減が見える高さになるよう、下限を下げる
+        # （棒が「差」を表すグラフなので、ここは §1 の 0 起点ルールの例外）
+        base = ch["series"][0][1]
+        tops = [base[i] + next((v[i] for _, v in ch["series"][1:] if v[i] is not None), 0) for i in range(n)]
+        lo, hi = min([b for b in base if b], default=0), max(tops)
+        step = 10 ** (len(str(int(max(hi - lo, 1)))) - 1)
+        axes = cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], delete=1,
+                                           minv=int((lo - (hi - lo) * 0.6) // step * step))
     else:
         axes = cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], delete=val_deleted,
-                                           zero=(kind in ("bar", "bar100")), maxv=(1 if kind == "bar100" else None))
+                                           zero=(kind in ("bar", "bar100", "waterfall")), maxv=(1 if kind == "bar100" else None))
     # 直接ラベルを置く折れ線・複合では凡例を出さない（CHART_RULES.md §5）
-    legend = ("" if kind in ("line", "combo")
+    legend = ("" if kind in ("line", "combo", "waterfall")
               else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=SZ, clr="tx1") + '</c:legend>')
     ext = '<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>' if embedded else ""
     return (XML + f'<c:chartSpace {C_NS}><c:date1904 val="0"/><c:lang val="ja-JP"/><c:roundedCorners val="0"/>'
@@ -199,6 +260,7 @@ def chart_xml(ch, sheet, embedded):
 
 # ---------------------------------------------------------------- xlsx writer
 def sheet_xml(ch):
+    normalize(ch)
     fmt_style = 2 if "%" in ch["fmt"] else 1
     rows = [[""] + [s for s, _ in ch["series"]]] + [[c] + [v[i] for _, v in ch["series"]] for i, c in enumerate(ch["cats"])]
     out = ""
@@ -208,7 +270,7 @@ def sheet_xml(ch):
             ref = f"{col(ci)}{ri}"
             if isinstance(v, (int, float)):
                 cells += f'<c r="{ref}" s="{fmt_style}"><v>{v}</v></c>'
-            elif v != "":
+            elif v not in ("", None):
                 style = ' s="3"' if ri == 1 else ""
                 cells += f'<c r="{ref}" t="inlineStr"{style}><is><t>{esc(v)}</t></is></c>'
         out += f'<row r="{ri}">{cells}</row>'
