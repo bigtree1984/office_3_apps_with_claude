@@ -62,3 +62,38 @@ AI も人も読み違える。
 - 値の正は**必ず1か所**。他のファイルは「そこを見る」と書くだけにする。
 - **確かめ方**：トークンを一時的に別の値に変えて生成し、出力が追随するかを見る。目視では気づけない。
 - 同じ性質の事故：「指定しない＝Office の既定が出る」。**書き漏らしと二重持ちが、デザインシステムの二大事故**。
+
+## chartEx ―― ウォーターフォールなど「新しいグラフ」は別形式
+
+Excel 2016 以降のウォーターフォール・ツリーマップ・サンバースト・じょうごは、
+従来のグラフ（`c:chartSpace`）ではなく **chartEx**（`cx:chartSpace`）という別の形式で保存される。
+
+```
+ppt/charts/chart7.xml     cx:chartSpace           application/vnd.ms-office.chartex+xml
+ppt/charts/colors7.xml    cs:colorStyle           application/vnd.ms-office.chartcolorstyle+xml
+ppt/charts/style7.xml     cs:chartStyle           application/vnd.ms-office.chartstyle+xml
+```
+
+スライド側の `a:graphicData` の uri は `http://schemas.microsoft.com/office/drawing/2014/chartex`、
+グラフへの関係は `http://schemas.microsoft.com/office/2014/relationships/chartEx`。
+
+ウォーターフォールの形は `<cx:series layoutId="waterfall">`。
+**連結線（棒と棒を結ぶ横線）も、増加／減少／合計の色分けも、この形式の機能として入っている。**
+合計として扱う柱は `<cx:layoutPr><cx:subtotals><cx:idx val="0"/></cx:subtotals></cx:layoutPr>` で指す。
+値は増減、合計の行だけ到達点そのものを入れる。
+
+### 詰まった2点（どちらも修復ダイアログになる）
+
+1. **要素の順番**。`cx:series` の中は `tx → dataLabels → dataId → layoutPr`。
+   `dataLabels` を後ろに置いただけで PowerPoint が「コンテンツに問題が見つかりました」を出す。
+2. **色とスタイルを別部品で持つ**。`colors{n}.xml` / `style{n}.xml` が無いと開けない。
+   しかも**ウォーターフォールの増加・減少・合計の色は、色部品の先頭3つ**から順に取られる
+   （系列側で色を指定するのではない）。
+   さらに `style{n}.xml` の `cs:dataPoint` を `<cs:fillRef idx="0"/>` にすると、
+   **棒の塗りが消えて線だけになる**。`<cs:fillRef idx="1"><cs:styleClr val="auto"/></cs:fillRef>` が要る。
+
+### 調べ方
+
+仕様書を読むより、**その形式を実際に書き出しているソフトのソースを読むほうが速い**。
+今回は R のライブラリ（encharter）の生成コードと突き合わせて、順番と必要な部品を確認した。
+推測で直すと、外すたびに修復ダイアログを閉じてもらうことになる。

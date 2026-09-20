@@ -58,10 +58,14 @@ CHARTS = [  # fmt2 は複合グラフの第2軸の書式
          cats=["検索", "SNS", "内部リンク", "その他"],
          series=[("前年", [2140, 1280, 640, 320]), ("今年", [3480, 1020, 980, 410])],
          highlight=None),   # 2時点の対比は横棒の集合棒。図形ではなくグラフで作る（データだから）
+    dict(name="graph8", data="data8", kind="waterfall-x", title="セッションの増減内訳（Excel 純正のウォーターフォール）", fmt="#,##0",
+         steps=[("8月", 12480, "total"), ("検索", 1340, ""), ("SNS", -620, ""),
+                ("内部リンク", 340, ""), ("その他", 690, ""), ("9月", 14230, "total")],
+         group=True, series_name="増減", highlight=None),   # chartEx 形式。連結線が機能として入っている
     dict(name="graph6", data="data6", kind="waterfall", title="セッションの増減内訳（8月→9月）", fmt="#,##0",
          steps=[("8月", 12480, "total"), ("検索", 1340, ""), ("SNS", -620, ""),
                 ("内部リンク", 340, ""), ("その他", 690, ""), ("9月", 14230, "total")],
-         highlight=None),   # 積み上げ棒＋透明な土台。増減の理由を1枚で見せる
+         group=True, highlight=None),   # 積み上げ棒＋透明な土台。増減の理由を1枚で見せる
 ]
 
 PALE = '<a:lumMod val="40000"/><a:lumOff val="60000"/>'  # theme tint, stays linked to the palette
@@ -118,12 +122,21 @@ def dlbls(kind, n, highlighted, fmt, clr="tx1"):
 WF_FILL = {"増加": "accent1", "減少": "accent3", "合計": "tx1"}
 
 
-def waterfall(steps):
+def waterfall(steps, group=False):
     """[(ラベル, 値, 種別)] を「土台＋増加＋減少＋合計」の4系列に展開する。
 
     種別が "total" の行は 0 から積み、それ以外は直前の到達点からの増減として積む。
     土台は塗りなしにするので、浮いた棒に見える（Office 2013 以降の標準的な作り方）。
+    group=True で、途中の項目を「増加をまとめて → 減少をまとめて」の順に並べ替える。
+    合計は同じなので、どこが押し上げ、どこが引き下げたかが読み取りやすくなる。
     """
+    if group:
+        head = [s for s in steps[:1] if s[2] == "total"]
+        tail = [s for s in steps[-1:] if s[2] == "total"]
+        mid = steps[len(head):len(steps) - len(tail)]
+        mid = (sorted([s for s in mid if s[1] >= 0], key=lambda s: -s[1])
+               + sorted([s for s in mid if s[1] < 0], key=lambda s: s[1]))
+        steps = head + mid + tail
     cats, base, up, down, total, run = [], [], [], [], [], 0
     for label, v, kind in steps:
         cats.append(label)
@@ -142,8 +155,12 @@ def waterfall(steps):
 
 def normalize(ch):
     """ウォーターフォールは steps から系列を作る（Excel 側と同じ数字になるよう、ここで一度だけ）。"""
+    if ch["kind"] == "waterfall-x":
+        ch.setdefault("series_name", "増減")
+        chartex_xml(ch)          # 並べ替えの結果（_steps_sorted）をシートと共有するため先に作る
+        return ch
     if ch["kind"] == "waterfall" and "series" not in ch:
-        ch["cats"], ch["series"] = waterfall(ch["steps"])
+        ch["cats"], ch["series"] = waterfall(ch["steps"], group=ch.get("group", False))
     return ch
 
 
@@ -203,6 +220,8 @@ def chart_xml(ch, sheet, embedded):
                 f'<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>{series_xml[1]}'
                 '<c:marker val="1"/><c:axId val="1003"/><c:axId val="1004"/></c:lineChart>')
     elif kind == "waterfall":
+        # 系列線（serLines）は棒の端ではなくカテゴリの中心どうしを結ぶので、
+        # ウォーターフォールの連結線にはならない（検証済み。notes/OOXML_BASICS.md）
         plot = (f'<c:barChart><c:barDir val="col"/><c:grouping val="stacked"/><c:varyColors val="0"/>{sers}'
                 '<c:gapWidth val="60"/><c:overlap val="100"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
     elif kind == "bar100":
@@ -272,11 +291,111 @@ def chart_xml(ch, sheet, embedded):
             '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' + TXT.format(sz=SZ, clr="tx1") + f'{ext}</c:chartSpace>')
 
 
+# ---------------------------------------------------------------- chartEx（Excel 2016 以降のウォーターフォール）
+CX_NS = ('xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" '
+         'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+         'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"')
+CX_REL = "http://schemas.microsoft.com/office/2014/relationships/chartEx"
+CX_URI = "http://schemas.microsoft.com/office/drawing/2014/chartex"
+CX_CT = "application/vnd.ms-office.chartex+xml"
+
+
+
+# chartEx は「色スタイル」「図形スタイル」を別パーツとして持つ前提の形式。
+# ウォーターフォールの増加／減少／合計の色は、色スタイルの先頭3つから取られる
+CS_NS = ('xmlns:cs="http://schemas.microsoft.com/office/drawing/2012/chartStyle" '
+         'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"')
+CX_COLOR_REL = "http://schemas.microsoft.com/office/2011/relationships/chartColorStyle"
+CX_STYLE_REL = "http://schemas.microsoft.com/office/2011/relationships/chartStyle"
+CX_COLOR_CT = "application/vnd.ms-office.chartcolorstyle+xml"
+CX_STYLE_CT = "application/vnd.ms-office.chartstyle+xml"
+WF_COLORS = ["accent1", "accent3", "tx1"]   # 増加・減少・合計
+
+
+def cx_colors():
+    body = "".join(f'<a:schemeClr val="{c}"/>' for c in WF_COLORS + ["accent4", "accent5", "accent2"])
+    return (XML + f'<cs:colorStyle {CS_NS} meth="cycle" id="10">{body}<cs:variation/>'
+            '<cs:variation><a:lumMod val="60000"/></cs:variation>'
+            '<cs:variation><a:lumMod val="80000"/><a:lumOff val="20000"/></cs:variation>'
+            '</cs:colorStyle>')
+
+
+def cx_style():
+    def item(tag, extra=""):
+        # 棒の塗りは dataPoint の fillRef から来る。idx="0"（塗りなし）にすると棒が線だけになる
+        fill = ('<cs:fillRef idx="1"><cs:styleClr val="auto"/></cs:fillRef>'
+                if tag.startswith("dataPoint") else '<cs:fillRef idx="0"/>')
+        return (f'<cs:{tag}><cs:lnRef idx="0"/>{fill}<cs:effectRef idx="0"/>'
+                f'<cs:fontRef idx="minor"><a:schemeClr val="tx1"/></cs:fontRef>{extra}</cs:{tag}>')
+    tags = ["axisTitle", "categoryAxis", "chartArea", "dataLabel", "dataLabelCallout", "dataPoint",
+            "dataPoint3D", "dataPointLine", "dataPointMarker", "dataPointWireframe", "dataTable",
+            "downBar", "dropLine", "errorBar", "floor", "gridlineMajor", "gridlineMinor", "hiLoLine",
+            "leaderLine", "legend", "plotArea", "plotArea3D", "seriesAxis", "seriesLine", "title",
+            "trendline", "trendlineLabel", "upBar", "valueAxis", "wall"]
+    body = "".join(item(t, "<cs:defRPr/>" if t.endswith(("Axis", "Title", "Label", "title", "legend", "dataTable")) else "") for t in tags)
+    return (XML + f'<cs:chartStyle {CS_NS} id="201">{body}'
+            '<cs:dataPointMarkerLayout symbol="circle" size="5"/></cs:chartStyle>')
+
+
+def chartex_xml(ch, sheet="Sheet1", embedded=True):
+    """ウォーターフォールを chartEx 形式で書く。
+
+    従来のグラフ（c:chart）には無い「連結線」「増加／減少の色分け」「合計として設定」が
+    形式そのものに入っている。値は増減、合計の行だけ到達点そのものを入れて subtotals で指す。
+    """
+    steps = ch["steps"]
+    if ch.get("group"):
+        head = [x for x in steps[:1] if x[2] == "total"]
+        tail = [x for x in steps[-1:] if x[2] == "total"]
+        mid = steps[len(head):len(steps) - len(tail)]
+        mid = (sorted([x for x in mid if x[1] >= 0], key=lambda x: -x[1])
+               + sorted([x for x in mid if x[1] < 0], key=lambda x: x[1]))
+        steps = head + mid + tail
+    ch["_steps_sorted"] = steps
+    n = len(steps)
+    cats = "".join(f'<cx:pt idx="{i}">{esc(x[0])}</cx:pt>' for i, x in enumerate(steps))
+    vals = "".join(f'<cx:pt idx="{i}">{x[1]}</cx:pt>' for i, x in enumerate(steps))
+    subs = "".join(f'<cx:idx val="{i}"/>' for i, x in enumerate(steps) if x[2] == "total")
+    txt = (f'<cx:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{SZ}">'
+           '<a:solidFill><a:schemeClr val="tx1"/></a:solidFill>'
+           '<a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/></a:defRPr></a:pPr></a:p></cx:txPr>')
+    ext = '<cx:externalData r:id="rId1" cx:autoUpdate="0"/>' if embedded else ""
+    return (XML + f'<cx:chartSpace {CX_NS}><cx:chartData>{ext}'
+            f'<cx:data id="0">'
+            f'<cx:strDim type="cat"><cx:f>{sheet}!$A$2:$A${n + 1}</cx:f>'
+            f'<cx:lvl ptCount="{n}">{cats}</cx:lvl></cx:strDim>'
+            f'<cx:numDim type="val"><cx:f>{sheet}!$B$2:$B${n + 1}</cx:f>'
+            f'<cx:lvl ptCount="{n}" formatCode="{ch["fmt"]}">{vals}</cx:lvl></cx:numDim>'
+            '</cx:data></cx:chartData>'
+            '<cx:chart><cx:plotArea><cx:plotAreaRegion>'
+            '<cx:series layoutId="waterfall" uniqueId="{00000000-1111-2222-3333-444444444444}">'
+            f'<cx:tx><cx:txData><cx:f>{sheet}!$B$1</cx:f><cx:v>{esc(ch["series_name"])}</cx:v></cx:txData></cx:tx>'
+            # 順番は規格どおり：tx → dataLabels → dataId → layoutPr（前後すると PowerPoint が修復をかける）
+            f'<cx:dataLabels pos="outEnd">{txt}<cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabels>'
+            '<cx:dataId val="0"/>'
+            f'<cx:layoutPr><cx:subtotals>{subs}</cx:subtotals></cx:layoutPr>'
+            '</cx:series></cx:plotAreaRegion>'
+            f'<cx:axis id="0"><cx:catScaling gapWidth="0.5"/><cx:tickLabels/>{txt}</cx:axis>'
+            f'<cx:axis id="1"><cx:valScaling/><cx:majorGridlines/><cx:tickLabels/>{txt}</cx:axis>'
+            '</cx:plotArea></cx:chart>'
+            '<cx:spPr><a:noFill/><a:ln><a:noFill/></a:ln></cx:spPr>'
+            '</cx:chartSpace>')
+
+
+def chartex_sheet(ch):
+    """chartEx 用のワークシート（A列＝ラベル、B列＝値）。"""
+    rows = [["", ch["series_name"]]] + [[x[0], x[1]] for x in ch.get("_steps_sorted", ch["steps"])]
+    return rows
+
+
 # ---------------------------------------------------------------- xlsx writer
 def sheet_xml(ch):
     normalize(ch)
     fmt_style = 2 if "%" in ch["fmt"] else 1
-    rows = [[""] + [s for s, _ in ch["series"]]] + [[c] + [v[i] for _, v in ch["series"]] for i, c in enumerate(ch["cats"])]
+    if ch["kind"] == "waterfall-x":
+        rows = chartex_sheet(ch)
+    else:
+        rows = [[""] + [s for s, _ in ch["series"]]] + [[c] + [v[i] for _, v in ch["series"]] for i, c in enumerate(ch["cats"])]
     out = ""
     for ri, row in enumerate(rows, 1):
         cells = ""
@@ -318,6 +437,11 @@ def xlsx(order):
             ct.append((f"/xl/worksheets/sheet{ws_i}.xml", f"{CT}.spreadsheetml.worksheet+xml"))
         else:
             cs_i += 1
+            # chartEx（ウォーターフォール）は uri・関係の種類・コンテンツタイプが別物
+            is_cx = kind == "chartex"
+            uri = CX_URI if is_cx else "http://schemas.openxmlformats.org/drawingml/2006/chart"
+            tag = (f'<cx:chart xmlns:cx="{CX_URI}" xmlns:r="{REL}" r:id="rId1"/>' if is_cx else
+                   f'<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="{REL}" r:id="rId1"/>')
             files[f"xl/chartsheets/sheet{cs_i}.xml"] = (
                 XML + '<chartsheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
                 f'xmlns:r="{REL}"><sheetViews><sheetView zoomToFit="1" workbookViewId="0"/></sheetViews><drawing r:id="rId1"/></chartsheet>')
@@ -327,15 +451,26 @@ def xlsx(order):
                 f'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:absoluteAnchor><xdr:pos x="0" y="0"/>'
                 '<xdr:ext cx="8670000" cy="6300000"/><xdr:graphicFrame macro=""><xdr:nvGraphicFramePr>'
                 f'<xdr:cNvPr id="2" name="{name}"/><xdr:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></xdr:cNvGraphicFramePr></xdr:nvGraphicFramePr>'
-                '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">'
-                f'<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="{REL}" r:id="rId1"/></a:graphicData></a:graphic>'
+                f'<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="{uri}">'
+                f'{tag}</a:graphicData></a:graphic>'
                 '</xdr:graphicFrame><xdr:clientData/></xdr:absoluteAnchor></xdr:wsDr>')
-            files[f"xl/drawings/_rels/drawing{cs_i}.xml.rels"] = rels([("chart", f"../charts/chart{cs_i}.xml")])
+            files[f"xl/drawings/_rels/drawing{cs_i}.xml.rels"] = (
+                (XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                 f'<Relationship Id="rId1" Type="{CX_REL}" Target="../charts/chart{cs_i}.xml"/></Relationships>')
+                if is_cx else rels([("chart", f"../charts/chart{cs_i}.xml")]))
             files[f"xl/charts/chart{cs_i}.xml"] = body
+            if is_cx:
+                files[f"xl/charts/colors{cs_i}.xml"] = cx_colors().encode()
+                files[f"xl/charts/style{cs_i}.xml"] = cx_style().encode()
+                files[f"xl/charts/_rels/chart{cs_i}.xml.rels"] = (
+                    XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                    f'<Relationship Id="rId2" Type="{CX_COLOR_REL}" Target="colors{cs_i}.xml"/>'
+                    f'<Relationship Id="rId3" Type="{CX_STYLE_REL}" Target="style{cs_i}.xml"/></Relationships>').encode()
+                ct += [(f"/xl/charts/colors{cs_i}.xml", CX_COLOR_CT), (f"/xl/charts/style{cs_i}.xml", CX_STYLE_CT)]
             wb_rels.append(("chartsheet", f"chartsheets/sheet{cs_i}.xml"))
             ct += [(f"/xl/chartsheets/sheet{cs_i}.xml", f"{CT}.spreadsheetml.chartsheet+xml"),
                    (f"/xl/drawings/drawing{cs_i}.xml", f"{CT}.drawing+xml"),
-                   (f"/xl/charts/chart{cs_i}.xml", f"{CT}.drawingml.chart+xml")]
+                   (f"/xl/charts/chart{cs_i}.xml", CX_CT if is_cx else f"{CT}.drawingml.chart+xml")]
         sheets_xml += f'<sheet name="{esc(name)}" sheetId="{i}" r:id="rId{i}"/>'
     n = len(wb_rels)
     wb_rels += [("styles", "styles.xml"), ("theme", "theme/theme1.xml")]
@@ -396,10 +531,18 @@ def add_default(ct_xml, ext, ctype):
 
 def embedded_parts(files, prefix, ch, i):
     """Write chart{i}.xml + its embedded workbook under {prefix}/charts and {prefix}/embeddings."""
-    files[f"{prefix}/charts/chart{i}.xml"] = chart_xml(ch, "Sheet1", embedded=True).encode()
+    is_cx = ch["kind"] == "waterfall-x"
+    files[f"{prefix}/charts/chart{i}.xml"] = (chartex_xml(ch) if is_cx else chart_xml(ch, "Sheet1", embedded=True)).encode()
+    extra = ""
+    if is_cx:
+        files[f"{prefix}/charts/colors{i}.xml"] = cx_colors().encode()
+        files[f"{prefix}/charts/style{i}.xml"] = cx_style().encode()
+        extra = (f'<Relationship Id="rId2" Type="{CX_COLOR_REL}" Target="colors{i}.xml"/>'
+                 f'<Relationship Id="rId3" Type="{CX_STYLE_REL}" Target="style{i}.xml"/>')
     files[f"{prefix}/charts/_rels/chart{i}.xml.rels"] = (
         XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        f'<Relationship Id="rId1" Type="{REL}/package" Target="../embeddings/Microsoft_Excel_Worksheet{i}.xlsx"/></Relationships>').encode()
+        f'<Relationship Id="rId1" Type="{REL}/package" Target="../embeddings/Microsoft_Excel_Worksheet{i}.xlsx"/>'
+        f'{extra}</Relationships>').encode()
     files[f"{prefix}/embeddings/Microsoft_Excel_Worksheet{i}.xlsx"] = xlsx([("sheet", "Sheet1", sheet_xml(ch))])
 
 
@@ -415,10 +558,13 @@ def inject_pptx(src, dst):
         embedded_parts(f, "ppt", ch, i)
         sn = n_slides + i
         build_potx._id[0] = 1
+        is_cx = ch["kind"] == "waterfall-x"
+        uri = CX_URI if is_cx else "http://schemas.openxmlformats.org/drawingml/2006/chart"
+        tag = (f'<cx:chart xmlns:cx="{CX_URI}" xmlns:r="{REL}" r:id="rId2"/>' if is_cx
+               else '<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rId2"/>')
         frame = (f'<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="{build_potx.nid()}" name="{ch["name"]}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>'
                  f'<p:xfrm><a:off x="{M}" y="1828800"/><a:ext cx="{W - 2 * M}" cy="{H - 1828800 - M}"/></p:xfrm>'
-                 '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">'
-                 f'<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rId2"/></a:graphicData></a:graphic></p:graphicFrame>')
+                 f'<a:graphic><a:graphicData uri="{uri}">{tag}</a:graphicData></a:graphic></p:graphicFrame>')
         slide = build_potx.slide([
             build_potx.s_ph("Title", 'type="title"', [(0, ch["title"])]),
             build_potx.s_ph("Lead", 'type="body" sz="quarter" idx="13"', [(0, f"データは {ch['data']}（横の report_charts.xlsx が正）")]),
@@ -427,12 +573,15 @@ def inject_pptx(src, dst):
         f[f"ppt/slides/_rels/slide{sn}.xml.rels"] = (
             XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             f'<Relationship Id="rId1" Type="{REL}/slideLayout" Target="../slideLayouts/slideLayout{BODY_LAYOUT}.xml"/>'
-            f'<Relationship Id="rId2" Type="{REL}/chart" Target="../charts/chart{i}.xml"/></Relationships>').encode()
+            f'<Relationship Id="rId2" Type="{CX_REL if is_cx else REL + "/chart"}" Target="../charts/chart{i}.xml"/></Relationships>').encode()
         rid = f"rIdChartSlide{i}"
         prels = add_rel(prels, rid, "slide", f"slides/slide{sn}.xml")
         pres = pres.replace("</p:sldIdLst>", f'<p:sldId id="{300 + i}" r:id="{rid}"/></p:sldIdLst>')
         ct = add_override(ct, f"/ppt/slides/slide{sn}.xml", f"{CT}.presentationml.slide+xml")
-        ct = add_override(ct, f"/ppt/charts/chart{i}.xml", f"{CT}.drawingml.chart+xml")
+        ct = add_override(ct, f"/ppt/charts/chart{i}.xml", CX_CT if is_cx else f"{CT}.drawingml.chart+xml")
+        if is_cx:
+            ct = add_override(ct, f"/ppt/charts/colors{i}.xml", CX_COLOR_CT)
+            ct = add_override(ct, f"/ppt/charts/style{i}.xml", CX_STYLE_CT)
     ct = add_default(ct, "xlsx", f"{CT}.spreadsheetml.sheet")
     f["[Content_Types].xml"], f["ppt/presentation.xml"], f["ppt/_rels/presentation.xml.rels"] = ct.encode(), pres.encode(), prels.encode()
     dst.write_bytes(zip_bytes(f))
@@ -475,7 +624,9 @@ if __name__ == "__main__":
     (OUT / "charts").mkdir(parents=True, exist_ok=True)
     order = []  # data1, graph1, data2, graph2 ...
     for ch in CHARTS:
-        order += [("sheet", ch["data"], sheet_xml(ch)), ("chart", ch["name"], chart_xml(ch, ch["data"], embedded=False))]
+        body = (("chartex", chartex_xml(ch, ch["data"], embedded=False)) if ch["kind"] == "waterfall-x"
+                else ("chart", chart_xml(ch, ch["data"], embedded=False)))
+        order += [("sheet", ch["data"], sheet_xml(ch)), (body[0], ch["name"], body[1])]
     (OUT / "charts/report_charts.xlsx").write_bytes(xlsx(order))
     print("wrote build/charts/report_charts.xlsx")
     inject_pptx(OUT / "bigtree_lab_sample.pptx", OUT / "bigtree_lab_charts.pptx")
