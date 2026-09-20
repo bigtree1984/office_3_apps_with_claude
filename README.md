@@ -26,7 +26,7 @@ XML を直接書けば全部設定できます。ここにあるのは、その�
 
 | 場所 | 中身 |
 |---|---|
-| `bigtree/templates/` | `bigtree_lab.potx` / `bigtree_lab.dotx`（フォント埋め込み済み） |
+| `bigtree/templates/` | `bigtree_lab.potx` / `bigtree_lab.dotx`（**フォント埋め込みなし**。各 0.2MB） |
 | `bigtree/samples/` | レイアウト見本、Organism、表、ネイティブグラフ入りの PPTX / DOCX |
 | `bigtree/design/` | トークン（色・文字サイズ）、Figma からの書き出し、Word スタイル表、SSOT の地図 |
 | `bigtree/assets/` | ロゴ（Fusion のスケッチ → SVG）、キービジュアル |
@@ -48,6 +48,17 @@ OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
 ```
 
 - 出力先は `build/`（Git には入れません）。`OFFICE3_OUT` で変えられます。
+### 公開ファイルの作り直し
+
+```
+.venv/bin/python scripts/publish_samples.py
+```
+
+`bigtree/templates/` と `bigtree/samples/` を作り直します。**フォントは埋め込みません**（再配布しないため、
+かつ埋め込むと 1 ファイル 6.6MB＝32倍になり、作り直すたび履歴に積み上がるため）。
+クライアント名などが混ざっていないかも中身を検査し、見つかればコピーせずに止まります。
+自分のフォントを埋め込みたいときは、提出直前に `scripts/embed_fonts.py` を通してください。
+
 - フォントは同梱していません。**Noto Sans JP の静的フォント**（Regular / Bold）を Google Fonts から入手して
   `~/Library/Fonts` に置くか、`OFFICE3_FONT_DIR` で場所を指定してください（可変フォントは埋め込みに使えません）。
 

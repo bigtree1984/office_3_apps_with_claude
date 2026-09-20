@@ -444,6 +444,7 @@ def build(path, kind, grid_on=False, embed=True):
 
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
-    build(OUT / "bigtree_lab.dotx", "template")
+    # --no-embed で公開用（フォントを埋め込まない）。scripts/publish_samples.py から使う
+    build(OUT / "bigtree_lab.dotx", "template", embed="--no-embed" not in sys.argv)
     build(OUT / "bigtree_lab_sample.docx", "sample", grid_on=False, embed=False)  # samples stay light
     build(OUT / "bigtree_lab_grid_on.docx", "sample", grid_on=True, embed=False)
