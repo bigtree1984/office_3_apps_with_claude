@@ -160,7 +160,7 @@ def chart_xml(ch, sheet, embedded):
     noline = '<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
     horiz = kind == "bar100"
     # 値ラベルを出した棒グラフは、縦軸の目盛りを消す（軸かラベルのどちらか一方）
-    val_deleted = 1 if (kind == "bar" and n <= 6) or horiz else 0
+    val_deleted = 1 if (kind == "bar" and n <= 6) else 0
     def cat_ax(axid, crossax, delete=0):
         return ('<c:catAx><c:axId val="%s"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
                 '<c:delete val="%s"/><c:axPos val="%s"/><c:numFmt formatCode="General" sourceLinked="1"/>'
@@ -168,9 +168,11 @@ def chart_xml(ch, sheet, embedded):
                 '<c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="tx2"/></a:solidFill></a:ln></c:spPr>%s'
                 '<c:crossAx val="%s"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'
                 % (axid, delete, "l" if horiz else "b", TXT.format(sz=SZ, clr="tx2"), crossax))
-    def val_ax(axid, crossax, fmt, delete=0, crosses="autoZero", show_grid=True, zero=False, unit=None):
-        # 棒は必ず 0 起点（CHART_RULES.md §1）
-        scaling = '<c:orientation val="minMax"/>' + ('<c:min val="0"/>' if zero else "")
+    def val_ax(axid, crossax, fmt, delete=0, crosses="autoZero", show_grid=True, zero=False, unit=None, maxv=None):
+        # 棒は必ず 0 起点（CHART_RULES.md §1）。100%積み上げは 0〜100% に固定する
+        # （自動任せだと「91%〜100%」のように途中から始まり、棒の長さが割合と合わなくなる）
+        scaling = ('<c:orientation val="minMax"/>' + (f'<c:max val="{maxv}"/>' if maxv is not None else "")
+                   + ('<c:min val="0"/>' if zero else ""))
         return ('<c:valAx><c:axId val="%s"/><c:scaling>%s</c:scaling><c:delete val="%s"/>'
                 '<c:axPos val="%s"/>%s<c:numFmt formatCode="%s" sourceLinked="0"/><c:majorTickMark val="none"/>'
                 '<c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>%s%s<c:crossAx val="%s"/><c:crosses val="%s"/>'
@@ -183,7 +185,8 @@ def chart_xml(ch, sheet, embedded):
                 + val_ax(1004, 1003, ch["fmt2"], crosses="max", show_grid=False, unit=ch.get("unit2"))
                 + cat_ax(1003, 1004, delete=1))
     else:
-        axes = cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], delete=val_deleted, zero=(kind == "bar"))
+        axes = cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], delete=val_deleted,
+                                           zero=(kind in ("bar", "bar100")), maxv=(1 if kind == "bar100" else None))
     # 直接ラベルを置く折れ線・複合では凡例を出さない（CHART_RULES.md §5）
     legend = ("" if kind in ("line", "combo")
               else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=SZ, clr="tx1") + '</c:legend>')

@@ -70,7 +70,20 @@ GANTT_ROWS = [  # (タスク, 担当, 状態, 開始, 終了, 色, 継続中か)
 ]
 
 
-def gantt(x, y, w, attr_w=(340, 120, 120), row_h=56):
+def text_w(s, pt):
+    """ざっくりの表示幅（px）。全角=1文字ぶん、半角=0.55文字ぶんで見積もる。"""
+    full = sum(1 if ord(c) > 0x2E80 else 0.55 for c in s)
+    return full * pt * 2      # px（2px = 1pt）
+
+
+def gantt(x, y, w, attr_w=None, row_h=56):
+    """ガント（表＋図形バー）。**属性列の幅は中身から計算する**：
+    セルで折り返すと行の高さが変わり、上に重ねたバーとずれるため（2026-09-20 に実際に発生）。"""
+    pt = bpf.STYLES["caption"]["pt"]
+    pad = 40                                   # セル余白ぶん
+    if attr_w is None:
+        cols = list(zip(*[(r[0], r[1], r[2]) for r in GANTT_ROWS] + [("タスク", "担当", "状態")]))
+        attr_w = tuple(max(text_w(s, pt) for s in c) + pad for c in cols)
     month_w = (w - sum(attr_w)) / len(GANTT_MONTHS)
     rows = [["タスク", "担当", "状態"] + GANTT_MONTHS]
     for name, owner, state, *_ in GANTT_ROWS:
