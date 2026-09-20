@@ -54,6 +54,10 @@ CHARTS = [  # fmt2 は複合グラフの第2軸の書式
          cats=["W35", "W36", "W37", "W38"],
          series=[("セッション（件）", [12480, 13102, 12955, 14230]), ("CVR（%）", [0.021, 0.023, 0.024, 0.022])],
          highlight="CVR（%）", unit2=0.005),   # 棒＝量（グレー）、折れ線＝率（強調色）。2軸
+    dict(name="graph7", data="data7", kind="barh", title="流入経路の前年との差", fmt="#,##0",
+         cats=["検索", "SNS", "内部リンク", "その他"],
+         series=[("前年", [2140, 1280, 640, 320]), ("今年", [3480, 1020, 980, 410])],
+         highlight=None),   # 2時点の対比は横棒の集合棒。図形ではなくグラフで作る（データだから）
     dict(name="graph6", data="data6", kind="waterfall", title="セッションの増減内訳（8月→9月）", fmt="#,##0",
          steps=[("8月", 12480, "total"), ("検索", 1340, ""), ("SNS", -620, ""),
                 ("内部リンク", 340, ""), ("その他", 690, ""), ("9月", 14230, "total")],
@@ -84,7 +88,7 @@ TXT = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{sz}"><a:solid
 def dlbls(kind, n, highlighted, fmt, clr="tx1"):
     """値ラベル（CHART_RULES.md §3）。棒は6カテゴリ以下なら全点、折れ線は両端だけ。"""
     txt = TXT.format(sz=SZ, clr="tx1")
-    if kind == "bar" and n <= 6:
+    if kind in ("bar", "barh") and n <= 6:
         return (f'<c:dLbls>{txt}<c:dLblPos val="outEnd"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     if kind == "bar100":   # 帯の中に % を置く
@@ -167,6 +171,9 @@ def chart_xml(ch, sheet, embedded):
                 dpt = (f'<c:dPt><c:idx val="{pi}"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/>'
                        f'<c:spPr><a:solidFill><a:schemeClr val="accent{si + 1}"/></a:solidFill>'
                        '<a:ln w="28575"><a:solidFill><a:schemeClr val="accent6"/></a:solidFill></a:ln></c:spPr></c:dPt>')
+        elif kind == "barh" and len(ch["series"]) == 2:   # 対比：古いほうをグレー、新しいほうに色
+            c2 = "accent4" if si == 0 else "accent1"
+            sppr = f'<c:spPr><a:solidFill><a:schemeClr val="{c2}"/></a:solidFill><a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val="0"/>'
         elif kind == "waterfall":   # 土台は透明、増加＝accent1、減少＝グレー、合計＝濃色
             fill = "<a:noFill/>" if si == 0 else f'<a:solidFill><a:schemeClr val="{WF_FILL[sname]}"/></a:solidFill>'
             sppr = f'<c:spPr>{fill}<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val="0"/>'
@@ -201,6 +208,9 @@ def chart_xml(ch, sheet, embedded):
     elif kind == "bar100":
         plot = (f'<c:barChart><c:barDir val="bar"/><c:grouping val="percentStacked"/><c:varyColors val="0"/>{sers}'
                 '<c:gapWidth val="60"/><c:overlap val="100"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
+    elif kind == "barh":   # 横棒。項目名が日本語のときは横のほうが読みやすい
+        plot = (f'<c:barChart><c:barDir val="bar"/><c:grouping val="clustered"/><c:varyColors val="0"/>{sers}'
+                '<c:gapWidth val="60"/><c:overlap val="-10"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
     elif kind == "bar":
         plot = (f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>{sers}'
                 '<c:gapWidth val="80"/><c:overlap val="-10"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
@@ -210,11 +220,13 @@ def chart_xml(ch, sheet, embedded):
 
     grid = ('<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:schemeClr val="accent5"/></a:solidFill></a:ln></c:spPr></c:majorGridlines>')
     noline = '<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
-    horiz = kind == "bar100"
+    horiz = kind in ("bar100", "barh")
     # 値ラベルを出した棒グラフは、縦軸の目盛りを消す（軸かラベルのどちらか一方）
-    val_deleted = 1 if (kind == "bar" and n <= 6) or kind == "waterfall" else 0
+    val_deleted = 1 if (kind in ("bar", "barh") and n <= 6) or kind == "waterfall" else 0
     def cat_ax(axid, crossax, delete=0):
-        return ('<c:catAx><c:axId val="%s"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
+        # 横棒は既定だと最初の項目が一番下にくるので、軸を逆向きにして上から読める順にする
+        orient = "maxMin" if kind == "barh" else "minMax"
+        return (f'<c:catAx><c:axId val="%s"/><c:scaling><c:orientation val="{orient}"/></c:scaling>'
                 '<c:delete val="%s"/><c:axPos val="%s"/><c:numFmt formatCode="General" sourceLinked="1"/>'
                 '<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
                 '<c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="tx2"/></a:solidFill></a:ln></c:spPr>%s'
@@ -229,7 +241,8 @@ def chart_xml(ch, sheet, embedded):
                 '<c:axPos val="%s"/>%s<c:numFmt formatCode="%s" sourceLinked="0"/><c:majorTickMark val="none"/>'
                 '<c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>%s%s<c:crossAx val="%s"/><c:crosses val="%s"/>'
                 '<c:crossBetween val="between"/>%s</c:valAx>'
-                % (axid, scaling, delete, "b" if horiz else "l", grid if show_grid else "", fmt,
+                # 横棒のときの目盛線は「縦線」になる。縦の目盛線は引かない（CHART_RULES §6）
+                % (axid, scaling, delete, "b" if horiz else "l", grid if (show_grid and not horiz) else "", fmt,
                    noline, TXT.format(sz=SZ, clr="tx2"), crossax, crosses,
                    f'<c:majorUnit val="{unit}"/>' if unit else ""))
     if kind == "combo":
@@ -247,7 +260,8 @@ def chart_xml(ch, sheet, embedded):
                                            minv=int((lo - (hi - lo) * 0.6) // step * step))
     else:
         axes = cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], delete=val_deleted,
-                                           zero=(kind in ("bar", "bar100", "waterfall")), maxv=(1 if kind == "bar100" else None))
+                                           crosses=("max" if kind == "barh" else "autoZero"),
+                                           zero=(kind in ("bar", "barh", "bar100", "waterfall")), maxv=(1 if kind == "bar100" else None))
     # 直接ラベルを置く折れ線・複合では凡例を出さない（CHART_RULES.md §5）
     legend = ("" if kind in ("line", "combo", "waterfall")
               else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=SZ, clr="tx1") + '</c:legend>')
