@@ -67,6 +67,11 @@ def esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+# 文字サイズはトークン由来（design/tokens.json の「補足・グラフ・表」）。ベタ書きしない
+CHART_PT = bpf.STYLES["caption"]["pt"]
+SZ = int(CHART_PT * 100)
+
+
 # ---------------------------------------------------------------- chart XML (shared by xlsx / pptx / docx)
 TXT = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{sz}"><a:solidFill><a:schemeClr val="{clr}"/></a:solidFill>'
        '<a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/></a:defRPr></a:pPr><a:endParaRPr lang="ja-JP"/></a:p></c:txPr>')
@@ -74,12 +79,12 @@ TXT = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{sz}"><a:solid
 
 def dlbls(kind, n, highlighted, fmt):
     """値ラベル（CHART_RULES.md §3）。棒は6カテゴリ以下なら全点、折れ線は両端だけ。"""
-    txt = TXT.format(sz=1100, clr="tx1")
+    txt = TXT.format(sz=SZ, clr="tx1")
     if kind == "bar" and n <= 6:
         return (f'<c:dLbls>{txt}<c:dLblPos val="outEnd"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     if kind == "bar100":   # 帯の中に % を置く
-        return (f'<c:dLbls>{TXT.format(sz=1100, clr="tx1")}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
+        return (f'<c:dLbls>{TXT.format(sz=SZ, clr="tx1")}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     if kind in ("line", "combo-line"):
         # 直接ラベル：最後の点に「系列名＋値」。強調系列は最初の点にも値を出す
@@ -162,7 +167,7 @@ def chart_xml(ch, sheet, embedded):
                 '<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
                 '<c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="tx2"/></a:solidFill></a:ln></c:spPr>%s'
                 '<c:crossAx val="%s"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'
-                % (axid, delete, "l" if horiz else "b", TXT.format(sz=1100, clr="tx2"), crossax))
+                % (axid, delete, "l" if horiz else "b", TXT.format(sz=SZ, clr="tx2"), crossax))
     def val_ax(axid, crossax, fmt, delete=0, crosses="autoZero", show_grid=True, zero=False, unit=None):
         # 棒は必ず 0 起点（CHART_RULES.md §1）
         scaling = '<c:orientation val="minMax"/>' + ('<c:min val="0"/>' if zero else "")
@@ -171,7 +176,7 @@ def chart_xml(ch, sheet, embedded):
                 '<c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>%s%s<c:crossAx val="%s"/><c:crosses val="%s"/>'
                 '<c:crossBetween val="between"/>%s</c:valAx>'
                 % (axid, scaling, delete, "b" if horiz else "l", grid if show_grid else "", fmt,
-                   noline, TXT.format(sz=1100, clr="tx2"), crossax, crosses,
+                   noline, TXT.format(sz=SZ, clr="tx2"), crossax, crosses,
                    f'<c:majorUnit val="{unit}"/>' if unit else ""))
     if kind == "combo":
         axes = (cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], zero=True)
@@ -181,12 +186,12 @@ def chart_xml(ch, sheet, embedded):
         axes = cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], delete=val_deleted, zero=(kind == "bar"))
     # 直接ラベルを置く折れ線・複合では凡例を出さない（CHART_RULES.md §5）
     legend = ("" if kind in ("line", "combo")
-              else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=1100, clr="tx1") + '</c:legend>')
+              else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=SZ, clr="tx1") + '</c:legend>')
     ext = '<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>' if embedded else ""
     return (XML + f'<c:chartSpace {C_NS}><c:date1904 val="0"/><c:lang val="ja-JP"/><c:roundedCorners val="0"/>'
             f'<c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>{plot}{axes}</c:plotArea>{legend}'
             '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>'
-            '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' + TXT.format(sz=1100, clr="tx1") + f'{ext}</c:chartSpace>')
+            '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' + TXT.format(sz=SZ, clr="tx1") + f'{ext}</c:chartSpace>')
 
 
 # ---------------------------------------------------------------- xlsx writer

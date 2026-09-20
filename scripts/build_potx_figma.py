@@ -22,7 +22,7 @@ SPEC = json.loads((BRAND / "design/figma_layouts.json").read_text())
 EMU = bp.W / SPEC["frame"][0]  # 6350
 XML, NS, REL, CT = bp.XML, bp.NS, bp.REL, bp.CT
 SCHEME = {"dk1": "tx1", "lt1": "bg1", "dk2": "tx2", "lt2": "bg2"}
-STYLES = SPEC["text_styles"]
+STYLES = bp._TOKENS["type_pptx"]["roles"]   # 文字スタイルの正は tokens.json
 
 
 def e(px):

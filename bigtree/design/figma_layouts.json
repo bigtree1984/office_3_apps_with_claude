@@ -1,5 +1,5 @@
 {
-  "_source": "Figma 'Office Design System (Bigtree Lab)' fileKey 0MH0fNiTtcID0nw201lJkx, page '02 PowerPoint', frames layout/01..07. Exported by Claude via use_figma on 2026-09-20. Units: px (1440x810 frame, 2px = 1pt). Do not edit by hand: change Figma, then ask Claude to re-export.",
+  "_source": "Figma 'Office Design System (Bigtree Lab)' fileKey 0MH0fNiTtcID0nw201lJkx, page '02 PowerPoint', frames layout/01..07. Exported by Claude via use_figma on 2026-09-20. Units: px (1440x810 frame, 2px = 1pt). Do not edit by hand: change Figma, then ask Claude to re-export. 文字スタイルは tokens.json の type_pptx を見る。",
   "frame": [
     1440,
     810
@@ -750,42 +750,5 @@
         }
       ]
     }
-  ],
-  "text_styles": {
-    "cover": {
-      "pt": 34,
-      "weight": "Bold",
-      "line": 110
-    },
-    "section": {
-      "pt": 27,
-      "weight": "Bold",
-      "line": 110
-    },
-    "title": {
-      "pt": 22,
-      "weight": "Bold",
-      "line": 120
-    },
-    "lead": {
-      "pt": 18,
-      "weight": "Bold",
-      "line": 130
-    },
-    "body": {
-      "pt": 14,
-      "weight": "Regular",
-      "line": 140
-    },
-    "caption": {
-      "pt": 11,
-      "weight": "Regular",
-      "line": 140
-    },
-    "min": {
-      "pt": 9,
-      "weight": "Regular",
-      "line": 120
-    }
-  }
+  ]
 }
