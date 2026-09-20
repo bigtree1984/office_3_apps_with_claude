@@ -617,15 +617,26 @@ def inject_docx(src, dst):
     body = ('<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>グラフ</w:t></w:r></w:p>'
             '<w:p><w:r><w:t xml:space="preserve">ネイティブグラフ。右クリック →「データの編集」で埋め込みの Excel が開く。正は横に置いた report_charts.xlsx。</w:t></w:r></w:p>')
     for i, ch in enumerate(CHARTS, 1):
+        is_cx = ch["kind"] == "waterfall-x"       # chartEx は uri・関係・型が別物（PPTX と同じ扱い）
         embedded_parts(f, "word", ch, i)
         rid = f"rIdChart{i}"
-        drels = add_rel(drels, rid, "chart", f"charts/chart{i}.xml")
-        ct = add_override(ct, f"/word/charts/chart{i}.xml", f"{CT}.drawingml.chart+xml")
+        if is_cx:
+            drels = drels.replace("</Relationships>",
+                                  f'<Relationship Id="{rid}" Type="{CX_REL}" Target="charts/chart{i}.xml"/></Relationships>')
+            ct = add_override(ct, f"/word/charts/chart{i}.xml", CX_CT)
+            ct = add_override(ct, f"/word/charts/colors{i}.xml", CX_COLOR_CT)
+            ct = add_override(ct, f"/word/charts/style{i}.xml", CX_STYLE_CT)
+        else:
+            drels = add_rel(drels, rid, "chart", f"charts/chart{i}.xml")
+            ct = add_override(ct, f"/word/charts/chart{i}.xml", f"{CT}.drawingml.chart+xml")
+        uri = CX_URI if is_cx else "http://schemas.openxmlformats.org/drawingml/2006/chart"
+        tag = (f'<cx:chart xmlns:cx="{CX_URI}" xmlns:r="{REL}" r:id="{rid}"/>' if is_cx else
+               f'<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="{rid}"/>')
         body += (f'<w:p><w:pPr><w:pStyle w:val="FigureBlock"/></w:pPr><w:r><w:drawing>'
                  '<wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
                  f'<wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="{100 + i}" name="{ch["name"]}"/>'
-                 '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">'
-                 f'<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="{rid}"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
+                 f'<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="{uri}">'
+                 f'{tag}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
                  '<w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t xml:space="preserve">図 </w:t></w:r>'
                  '<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> SEQ 図 \\* ARABIC </w:instrText></w:r>'
                  f'<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>{i + 1}</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>'

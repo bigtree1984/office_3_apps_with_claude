@@ -97,3 +97,14 @@ ppt/charts/style7.xml     cs:chartStyle           application/vnd.ms-office.char
 仕様書を読むより、**その形式を実際に書き出しているソフトのソースを読むほうが速い**。
 今回は R のライブラリ（encharter）の生成コードと突き合わせて、順番と必要な部品を確認した。
 推測で直すと、外すたびに修復ダイアログを閉じてもらうことになる。
+
+### Word に入れるときも同じ（見落としやすい）
+
+chartEx は PowerPoint・Excel・Word で**それぞれ別の場所に貼り付けコードがある**。
+PowerPoint だけ直して満足していると、Word 側が古い `c:chart` のまま残って壊れる（実際に壊した）。
+貼り付け先は3か所：`inject_pptx` / `xlsx` / `inject_docx`。uri・関係の種類・コンテンツタイプの
+3点セットを、どこでも同じように差し替える。
+
+Word の PDF 書き出しは AppleScript の `save as document 1 file name … file format format PDF`。
+ただし **Word のサンドボックスは /tmp に書けない**。パスを渡しても
+`~/Library/Containers/com.microsoft.Word/Data/Documents/` に出る（PowerPoint は /tmp に書ける）。
