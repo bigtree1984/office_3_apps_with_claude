@@ -359,7 +359,8 @@ def build(path, template, embed):
         '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>'
         + (f"<p:sldIdLst>{sld_ids}</p:sldIdLst>" if sld_ids else "")
         + f'<p:sldSz cx="{bp.W}" cy="{bp.H}"/><p:notesSz cx="6858000" cy="9144000"/>{font_xml}'
-        '<p:defaultTextStyle><a:defPPr><a:defRPr lang="ja-JP"/></a:defPPr><a:lvl1pPr><a:defRPr sz="1400">'
+        # 既定の文字サイズもトークンから。ベタ書きすると、本文を変えてもここだけ古い値が残る
+        + f'<p:defaultTextStyle><a:defPPr><a:defRPr lang="ja-JP"/></a:defPPr><a:lvl1pPr><a:defRPr sz="{int(STYLES["body"]["pt"] * 100)}">'
         f'{clr("dk1")}<a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/></a:defRPr></a:lvl1pPr></p:defaultTextStyle></p:presentation>')
     files["ppt/_rels/presentation.xml.rels"] = rels_xml(pres_rels)
     files["ppt/presProps.xml"] = XML + f'<p:presentationPr {NS}/>'
