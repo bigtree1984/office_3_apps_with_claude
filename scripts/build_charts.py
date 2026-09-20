@@ -16,6 +16,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_potx  # noqa: E402  (shared theme)
+import build_potx_figma as bpf  # noqa: E402  (レイアウトの並び順)
+
+BODY_LAYOUT = [l["name"] for l in bpf.SPEC["layouts"]].index("06_本文") + 1
 
 ROOT = Path(__file__).resolve().parent.parent
 BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # brand values (tokens, assets, templates)
@@ -29,7 +32,8 @@ REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 CT = "application/vnd.openxmlformats-officedocument"
 
 # ---------------------------------------------------------------- data (dummy weekly report)
-CHARTS = [
+CHARTS = [  # fmt2 は複合グラフの第2軸の書式
+
     dict(name="graph1", data="data1", kind="bar", title="週次セッション（流入経路別）", fmt="#,##0",
          cats=["W35", "W36", "W37", "W38"],
          series=[("広告経由", [5200, 5600, 5400, 6100]), ("自然流入", [7280, 7502, 7555, 8130])],
@@ -46,6 +50,10 @@ CHARTS = [
          cats=["2026/09"],
          series=[("検索", [0.58]), ("SNS", [0.21]), ("note 内", [0.13]), ("その他", [0.08])],
          highlight=None),   # 100% 積み上げ横棒。構成比は図形ではなくグラフで作る（データだから）
+    dict(name="graph5", data="data5", kind="combo", title="セッションと CVR", fmt="#,##0", fmt2="0.0%",
+         cats=["W35", "W36", "W37", "W38"],
+         series=[("セッション（件）", [12480, 13102, 12955, 14230]), ("CVR（%）", [0.021, 0.023, 0.024, 0.022])],
+         highlight="CVR（%）", unit2=0.005),   # 棒＝量（グレー）、折れ線＝率（強調色）。2軸
 ]
 
 PALE = '<a:lumMod val="40000"/><a:lumOff val="60000"/>'  # theme tint, stays linked to the palette
@@ -64,66 +72,121 @@ TXT = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{sz}"><a:solid
        '<a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/></a:defRPr></a:pPr><a:endParaRPr lang="ja-JP"/></a:p></c:txPr>')
 
 
+def dlbls(kind, n, highlighted, fmt):
+    """値ラベル（CHART_RULES.md §3）。棒は6カテゴリ以下なら全点、折れ線は両端だけ。"""
+    txt = TXT.format(sz=1100, clr="tx1")
+    if kind == "bar" and n <= 6:
+        return (f'<c:dLbls>{txt}<c:dLblPos val="outEnd"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
+                '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
+    if kind == "bar100":   # 帯の中に % を置く
+        return (f'<c:dLbls>{TXT.format(sz=1100, clr="tx1")}<c:dLblPos val="ctr"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
+                '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
+    if kind in ("line", "combo-line"):
+        # 直接ラベル：最後の点に「系列名＋値」。強調系列は最初の点にも値を出す
+        pts = [n - 1] + ([0] if highlighted else [])
+        body = ""
+        for i in sorted(pts):
+            ser_name = '<c:showSerName val="1"/>' if i == n - 1 else '<c:showSerName val="0"/>'
+            body += (f'<c:dLbl><c:idx val="{i}"/>{txt}<c:dLblPos val="r" />'
+                     f'<c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/>{ser_name}'
+                     '<c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbl>')
+        return (f'<c:dLbls>{body}<c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/>'
+                '<c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
+    return ""
+
+
 def chart_xml(ch, sheet, embedded):
+    ch.setdefault("fmt2", None)
+    """CHART_RULES.md に沿ってグラフ XML を組み立てる。kind: bar / line / bar100 / combo"""
     n = len(ch["cats"])
+    kind = ch["kind"]
     q = f"'{sheet}'" if not sheet.isascii() else sheet
     cat_ref = (f'<c:cat><c:strRef><c:f>{q}!$A$2:$A${n + 1}</c:f><c:strCache><c:ptCount val="{n}"/>'
                + "".join(f'<c:pt idx="{i}"><c:v>{esc(v)}</c:v></c:pt>' for i, v in enumerate(ch["cats"]))
                + '</c:strCache></c:strRef></c:cat>')
-    sers = ""
+    series_xml = []
     for si, (sname, vals) in enumerate(ch["series"]):
         c = col(si + 1)
-        dpt = ""
-        if ch.get("pale"):
+        line_like = kind == "line" or (kind == "combo" and si > 0)
+        fmt = ch["fmt2"] if (kind == "combo" and si > 0) else ch["fmt"]
+        dpt, sppr = "", ""
+        if ch.get("pale"):          # 全体を淡く、1点だけ濃く（強調の単位＝1点）
             sppr = (f'<c:spPr><a:solidFill><a:schemeClr val="accent{si + 1}">{PALE}</a:schemeClr></a:solidFill>'
                     '<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val="0"/>')
             if ch.get("point") and ch["point"][0] == sname:
                 pi = ch["cats"].index(ch["point"][1])
-                # one data point: solid fill of its own series color + accent6 (emphasis) outline
                 dpt = (f'<c:dPt><c:idx val="{pi}"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/>'
                        f'<c:spPr><a:solidFill><a:schemeClr val="accent{si + 1}"/></a:solidFill>'
                        '<a:ln w="28575"><a:solidFill><a:schemeClr val="accent6"/></a:solidFill></a:ln></c:spPr></c:dPt>')
-        elif ch["highlight"] is None:
-            sppr = ""  # leave it to Office: series i gets accent(i+1)
-        else:
-            clr, w = ("accent6", 34925) if sname == ch["highlight"] else ("tx2", 19050)
-            sppr = (f'<c:spPr><a:ln w="{w}" cap="rnd"><a:solidFill><a:schemeClr val="{clr}"/></a:solidFill>'
-                    '<a:round/></a:ln></c:spPr>')
-        marker = ('<c:marker><c:symbol val="none"/></c:marker>' if ch["kind"] == "line" else "")
-        sers += (f'<c:ser><c:idx val="{si}"/><c:order val="{si}"/>'
-                 f'<c:tx><c:strRef><c:f>{q}!${c}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>{esc(sname)}</c:v></c:pt></c:strCache></c:strRef></c:tx>'
-                 f'{sppr}{marker}{dpt}{cat_ref}'
-                 f'<c:val><c:numRef><c:f>{q}!${c}$2:${c}${n + 1}</c:f><c:numCache><c:formatCode>{ch["fmt"]}</c:formatCode><c:ptCount val="{n}"/>'
-                 + "".join(f'<c:pt idx="{i}"><c:v>{v}</c:v></c:pt>' for i, v in enumerate(vals))
-                 + '</c:numCache></c:numRef></c:val>'
-                 + ('<c:smooth val="0"/>' if ch["kind"] == "line" else "") + '</c:ser>')
-    if ch["kind"] == "bar100":   # 100% 積み上げ横棒（構成比）
+        elif kind == "combo":       # 棒＝量はグレー、折れ線＝率は強調色
+            sppr = ('<c:spPr><a:ln w="34925" cap="rnd"><a:solidFill><a:schemeClr val="accent6"/></a:solidFill><a:round/></a:ln></c:spPr>'
+                    if si else '<c:spPr><a:solidFill><a:schemeClr val="accent4"/></a:solidFill><a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val="0"/>')
+        elif ch.get("highlight"):   # 強調する系列だけ accent6、ほかはグレー
+            clr, w = ("accent6", 34925) if sname == ch["highlight"] else ("accent4", 19050)
+            sppr = (f'<c:spPr><a:ln w="{w}" cap="rnd"><a:solidFill><a:schemeClr val="{clr}"/></a:solidFill><a:round/></a:ln></c:spPr>')
+        marker = '<c:marker><c:symbol val="circle"/><c:size val="6"/></c:marker>' if line_like else ""
+        lbl = dlbls("combo-line" if line_like else kind, n, sname == ch.get("highlight"), fmt)
+        series_xml.append(
+            f'<c:ser><c:idx val="{si}"/><c:order val="{si}"/>'
+            f'<c:tx><c:strRef><c:f>{q}!${c}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>{esc(sname)}</c:v></c:pt></c:strCache></c:strRef></c:tx>'
+            f'{sppr}{marker}{dpt}{lbl}{cat_ref}'
+            f'<c:val><c:numRef><c:f>{q}!${c}$2:${c}${n + 1}</c:f><c:numCache><c:formatCode>{fmt}</c:formatCode><c:ptCount val="{n}"/>'
+            + "".join(f'<c:pt idx="{i}"><c:v>{v}</c:v></c:pt>' for i, v in enumerate(vals))
+            + '</c:numCache></c:numRef></c:val>'
+            + ('<c:smooth val="0"/>' if line_like else "") + '</c:ser>')
+    sers = "".join(series_xml)
+
+    if kind == "combo":
+        plot = (f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>{series_xml[0]}'
+                '<c:gapWidth val="80"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>'
+                f'<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>{series_xml[1]}'
+                '<c:marker val="1"/><c:axId val="1003"/><c:axId val="1004"/></c:lineChart>')
+    elif kind == "bar100":
         plot = (f'<c:barChart><c:barDir val="bar"/><c:grouping val="percentStacked"/><c:varyColors val="0"/>{sers}'
                 '<c:gapWidth val="60"/><c:overlap val="100"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
-    elif ch["kind"] == "bar":
+    elif kind == "bar":
         plot = (f'<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>{sers}'
                 '<c:gapWidth val="80"/><c:overlap val="-10"/><c:axId val="1001"/><c:axId val="1002"/></c:barChart>')
     else:
         plot = (f'<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>{sers}'
                 '<c:marker val="1"/><c:axId val="1001"/><c:axId val="1002"/></c:lineChart>')
-    grid = '<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:schemeClr val="bg2"><a:lumMod val="90000"/></a:schemeClr></a:solidFill></a:ln></c:spPr></c:majorGridlines>'
+
+    grid = ('<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:schemeClr val="accent5"/></a:solidFill></a:ln></c:spPr></c:majorGridlines>')
     noline = '<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>'
-    horiz = ch["kind"] == "bar100"
-    axes = ('<c:catAx><c:axId val="1001"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
-            f'<c:delete val="{1 if horiz else 0}"/>'
-            f'<c:axPos val="{"l" if horiz else "b"}"/><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>'
-            '<c:tickLblPos val="nextTo"/><c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="tx2"/></a:solidFill></a:ln></c:spPr>'
-            + TXT.format(sz=1000, clr="tx2") + '<c:crossAx val="1002"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'
-            '<c:valAx><c:axId val="1002"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/>'
-            f'<c:axPos val="{"b" if horiz else "l"}"/>{grid}<c:numFmt formatCode="{ch["fmt"]}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>'
-            f'<c:tickLblPos val="nextTo"/>{noline}' + TXT.format(sz=1000, clr="tx2")
-            + '<c:crossAx val="1001"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx>')
-    legend = '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=1000, clr="tx1") + '</c:legend>'
+    horiz = kind == "bar100"
+    # 値ラベルを出した棒グラフは、縦軸の目盛りを消す（軸かラベルのどちらか一方）
+    val_deleted = 1 if (kind == "bar" and n <= 6) or horiz else 0
+    def cat_ax(axid, crossax, delete=0):
+        return ('<c:catAx><c:axId val="%s"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
+                '<c:delete val="%s"/><c:axPos val="%s"/><c:numFmt formatCode="General" sourceLinked="1"/>'
+                '<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
+                '<c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="tx2"/></a:solidFill></a:ln></c:spPr>%s'
+                '<c:crossAx val="%s"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'
+                % (axid, delete, "l" if horiz else "b", TXT.format(sz=1100, clr="tx2"), crossax))
+    def val_ax(axid, crossax, fmt, delete=0, crosses="autoZero", show_grid=True, zero=False, unit=None):
+        # 棒は必ず 0 起点（CHART_RULES.md §1）
+        scaling = '<c:orientation val="minMax"/>' + ('<c:min val="0"/>' if zero else "")
+        return ('<c:valAx><c:axId val="%s"/><c:scaling>%s</c:scaling><c:delete val="%s"/>'
+                '<c:axPos val="%s"/>%s<c:numFmt formatCode="%s" sourceLinked="0"/><c:majorTickMark val="none"/>'
+                '<c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>%s%s<c:crossAx val="%s"/><c:crosses val="%s"/>'
+                '<c:crossBetween val="between"/>%s</c:valAx>'
+                % (axid, scaling, delete, "b" if horiz else "l", grid if show_grid else "", fmt,
+                   noline, TXT.format(sz=1100, clr="tx2"), crossax, crosses,
+                   f'<c:majorUnit val="{unit}"/>' if unit else ""))
+    if kind == "combo":
+        axes = (cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], zero=True)
+                + val_ax(1004, 1003, ch["fmt2"], crosses="max", show_grid=False, unit=ch.get("unit2"))
+                + cat_ax(1003, 1004, delete=1))
+    else:
+        axes = cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], delete=val_deleted, zero=(kind == "bar"))
+    # 直接ラベルを置く折れ線・複合では凡例を出さない（CHART_RULES.md §5）
+    legend = ("" if kind in ("line", "combo")
+              else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=1100, clr="tx1") + '</c:legend>')
     ext = '<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>' if embedded else ""
     return (XML + f'<c:chartSpace {C_NS}><c:date1904 val="0"/><c:lang val="ja-JP"/><c:roundedCorners val="0"/>'
             f'<c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>{plot}{axes}</c:plotArea>{legend}'
             '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>'
-            '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' + TXT.format(sz=1000, clr="tx1") + f'{ext}</c:chartSpace>')
+            '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' + TXT.format(sz=1100, clr="tx1") + f'{ext}</c:chartSpace>')
 
 
 # ---------------------------------------------------------------- xlsx writer
@@ -274,12 +337,12 @@ def inject_pptx(src, dst):
                  f'<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rId2"/></a:graphicData></a:graphic></p:graphicFrame>')
         slide = build_potx.slide([
             build_potx.s_ph("Title", 'type="title"', [(0, ch["title"])]),
-            build_potx.s_ph("Lead", 'type="body" sz="quarter" idx="13"', [(0, f"ネイティブグラフ（{ch['name']}）。データはグラフ内の Excel と、横の report_charts.xlsx の {ch['data']} に同じものがある")]),
+            build_potx.s_ph("Lead", 'type="body" sz="quarter" idx="13"', [(0, f"データは {ch['data']}（横の report_charts.xlsx が正）")]),
             frame, build_potx.s_num()])
         f[f"ppt/slides/slide{sn}.xml"] = slide.encode()
         f[f"ppt/slides/_rels/slide{sn}.xml.rels"] = (
             XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            f'<Relationship Id="rId1" Type="{REL}/slideLayout" Target="../slideLayouts/slideLayout4.xml"/>'
+            f'<Relationship Id="rId1" Type="{REL}/slideLayout" Target="../slideLayouts/slideLayout{BODY_LAYOUT}.xml"/>'
             f'<Relationship Id="rId2" Type="{REL}/chart" Target="../charts/chart{i}.xml"/></Relationships>').encode()
         rid = f"rIdChartSlide{i}"
         prels = add_rel(prels, rid, "slide", f"slides/slide{sn}.xml")
