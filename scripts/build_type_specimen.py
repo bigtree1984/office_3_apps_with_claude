@@ -64,7 +64,7 @@ def tag(case, s):
 
 
 def footer(s, n, color="dk2"):
-    return [tb("Copyright", 36, 384, 300, 12, [para(run("© 2026 Bigtree Lab", s["min"], color))]),
+    return [tb("Copyright", 36, 384, 300, 12, [para(run(bp.COPYRIGHT, s["min"], color))]),
             tb("SlideNumber", 600, 384, 84, 12, [para(run(str(n), s["min"], color), algn="r")])]
 
 
@@ -78,7 +78,7 @@ def slides_for(case, start_no):
         tb("Title", 54, 130, 620, 110, [para(run("EC 運用レポート 2026年9月", s["cover"], black=True), line=110)], anchor="b"),
         rect("Decor_Line", 54, 250, 120, 3, "accent6"),
         tb("Subtitle", 54, 262, 620, 40, [para(run("広告費の配分見直しと、次の4週間の打ち手", s["lead"], "dk2"))]),
-        tb("Meta", 54, 340, 620, 20, [para(run("2026-09-19 ｜ Bigtree Lab ｜ だいき君", s["caption"], "dk2"))]),
+        tb("Meta", 54, 340, 620, 20, [para(run(bp.BRAND_INFO["meta"], s["caption"], "dk2"))]),
     ])))
     # 2 section (dark)
     bp._id[0] = 1

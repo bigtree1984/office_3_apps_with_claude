@@ -2,8 +2,8 @@
 
 Generic converter: RECTANGLE / ELLIPSE -> preset shapes, VECTOR / POLYGON -> custom geometry (paths copied as-is),
 TEXT -> text boxes with the design-system text styles. Each organism becomes one named group.
-Input : build/bigtree_lab_sample.pptx (from build_potx_figma.py)
-Output: build/bigtree_lab_organisms.pptx
+Input : build/<slug>_sample.pptx (from build_potx_figma.py)
+Output: build/<slug>_organisms.pptx
 Usage : .venv/bin/python scripts/build_organisms.py
 """
 import json
@@ -114,7 +114,7 @@ def main():
     body = next(l for l in bpf.SPEC["layouts"] if l["name"] == "06_本文")
     it = {i["name"]: i for i in body["items"]}
     cx, cy, cw, ch = it["Content"]["box"]
-    f = bc.read_zip(OUT / "bigtree_lab_sample.pptx")
+    f = bc.read_zip(OUT / bp.out_name("_sample.pptx"))
     ct = f["[Content_Types].xml"].decode()
     pres = f["ppt/presentation.xml"].decode()
     prels = f["ppt/_rels/presentation.xml.rels"].decode()
@@ -154,7 +154,7 @@ def main():
         pres = pres.replace("</p:sldIdLst>", f'<p:sldId id="{450 + j}" r:id="{rid}"/></p:sldIdLst>')
         ct = bc.add_override(ct, f"/ppt/slides/slide{sn}.xml", f"{bp.CT}.presentationml.slide+xml")
     f["[Content_Types].xml"], f["ppt/presentation.xml"], f["ppt/_rels/presentation.xml.rels"] = ct.encode(), pres.encode(), prels.encode()
-    out = OUT / "bigtree_lab_organisms.pptx"
+    out = OUT / bp.out_name("_organisms.pptx")
     out.write_bytes(bc.zip_bytes(f))
     print(f"wrote {out.relative_to(OUT.parent)}")
 

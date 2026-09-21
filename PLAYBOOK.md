@@ -39,7 +39,8 @@ Excel・PowerPoint・Word の3つで、同じ配色・同じ文字サイズが�
 ## 1. まず動かす（15分）
 
 ```bash
-git clone https://github.com/bigtree1984/office_3_apps_with_claude
+# 履歴は要らないので --depth 1 が速い（過去にフォント埋め込み版を含む時期があり、full clone は重い）
+git clone --depth 1 https://github.com/bigtree1984/office_3_apps_with_claude
 cd office_3_apps_with_claude
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
@@ -69,6 +70,20 @@ OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
 
 `tokens.json` が**色と文字サイズの唯一の正**です。ここを変えると、POTX のテーマ・マスター・
 Word のスタイル・**グラフの中の文字サイズ**まで、まとめて変わります。
+
+**ブランド名・著作権表示・ロゴ・出力ファイル名も同じファイルの `brand` ブロックから来ます。**
+
+```json
+"brand": {
+  "name": "Bigtree Lab", "slug": "bigtree_lab",
+  "url": "https://note.com/bigtree_lab", "copyright": "© 2026 Bigtree Lab",
+  "logo": "assets/logo/260920_BT_logo.svg", "meta": "2026-09-18 ｜ Bigtree Lab ｜ だいき君"
+}
+```
+
+`slug` が出力ファイル名（`<slug>.potx` / `<slug>_sample.pptx` …）、`copyright` がスライド下部と Word のフッター、
+`meta` が表紙の日付・作成者、`logo` が表紙と構造レイアウトのロゴです。
+ゼロから始めるなら `templates/tokens.template.json` を写して埋めてください。
 
 > **同じ値を2か所に置かない。** 一度 tokens.json と Figma 書き出しの両方に文字サイズを置いてしまい、
 > トークンを変えても出力が変わらない状態になりました。**疑ったら、片方を極端な値にして反映を確かめる**。

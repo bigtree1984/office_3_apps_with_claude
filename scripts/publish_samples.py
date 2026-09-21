@@ -17,6 +17,9 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import build_potx as bp  # noqa: E402  (ブランドの slug)
+
 ROOT = Path(__file__).resolve().parent.parent
 PY = sys.executable
 
@@ -28,9 +31,9 @@ BUILDERS = [
     ("build_dotx.py", ["--no-embed"]),      # グラフ見本の docx は、この sample.docx を土台にする
     ("build_charts.py", []),
 ]
-TEMPLATES = ["bigtree_lab.potx", "bigtree_lab.dotx"]
-SAMPLES = ["bigtree_lab_sample.pptx", "bigtree_lab_organisms.pptx", "bigtree_lab_tables.pptx",
-           "bigtree_lab_charts.pptx", "bigtree_lab_sample.docx", "bigtree_lab_charts.docx"]
+TEMPLATES = [bp.out_name(x) for x in (".potx", ".dotx")]
+SAMPLES = [bp.out_name(x) for x in ("_sample.pptx", "_organisms.pptx", "_tables.pptx",
+                                    "_charts.pptx", "_sample.docx", "_charts.docx")]
 SAMPLE_DIRS = ["charts"]          # 横に置く Excel（data1 / graph1 … が入ったブック）
 
 # 公開物に入ってはいけない語（クライアント名・社外秘の表記）
@@ -46,6 +49,22 @@ def check(path):
                 text = z.read(n).decode("utf-8", "ignore")
                 hits |= {w for w in FORBIDDEN if w in text}
     return hits
+
+
+def scan_sources():
+    """スクリプトと md も検査する（成果物だけ見ていると、コードに残った社名を見逃す）。"""
+    bad = []
+    me = Path(__file__).resolve()
+    for f in sorted(list(ROOT.glob("scripts/*.py")) + list(ROOT.glob("*.md")) + list(ROOT.glob("notes/*.md"))
+                    + list(ROOT.glob("bigtree/design/*.md"))):
+        if f.resolve() == me:      # この検査スクリプト自身（禁止語の一覧を持っている）は除く
+            continue
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        for i, line in enumerate(text.splitlines(), 1):
+            for w in FORBIDDEN:
+                if w in line:
+                    bad.append(f"{f.relative_to(ROOT)}:{i}  {w}  {line.strip()[:70]}")
+    return bad
 
 
 def embedded_fonts(path):
@@ -64,6 +83,10 @@ def main():
             raise SystemExit(f"{script} が失敗しました")
 
     ng = False
+    src_bad = scan_sources()
+    for line in src_bad:
+        print(f"  NG（ソースに公開できない語）{line}")
+    ng = bool(src_bad)
     for group, names in (("templates", TEMPLATES), ("samples", SAMPLES)):
         dst_dir = ROOT / "bigtree" / group
         dst_dir.mkdir(parents=True, exist_ok=True)

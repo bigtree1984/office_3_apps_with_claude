@@ -156,7 +156,7 @@ def main():
     orgs = json.loads((BRAND / "design/figma_organisms.json").read_text())["organisms"]
     fw, fh = spec["frame"]
     TOKENS["master_guides"] = spec.get("master_guides", [])
-    assets = {"logo": data_uri(BRAND / "assets/logo/260920_BT_logo.svg")}
+    assets = {"logo": data_uri(BRAND / bp.BRAND_INFO["logo"])}
     for lay in spec["layouts"]:
         for it in lay["items"]:
             if it.get("kind") == "picture":

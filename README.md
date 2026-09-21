@@ -26,7 +26,7 @@ XML を直接書けば全部設定できます。ここにあるのは、その�
 
 | 場所 | 中身 |
 |---|---|
-| `bigtree/templates/` | `bigtree_lab.potx` / `bigtree_lab.dotx`（**フォント埋め込みなし**。各 0.2MB） |
+| `bigtree/templates/` | `bigtree_lab.potx`（206KB）/ `bigtree_lab.dotx`（8KB）。**フォント埋め込みなし** |
 | `bigtree/samples/` | レイアウト見本、Organism、表、ネイティブグラフ入りの PPTX / DOCX |
 | `bigtree/design/` | トークン（色・文字サイズ）、Figma からの書き出し、Word スタイル表、SSOT の地図 |
 | `bigtree/assets/` | ロゴ（Fusion のスケッチ → SVG）、キービジュアル |
@@ -47,6 +47,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/preview.py --open
 
 # 自分のブランドで作る（値・ロゴ・レイアウトの書き出しを置いたフォルダを指定）
+cp -r bigtree ~/mybrand      # 雛形だけ欲しいときは templates/tokens.template.json
 OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
 ```
 

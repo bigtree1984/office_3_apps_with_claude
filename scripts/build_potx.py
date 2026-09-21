@@ -37,6 +37,19 @@ THEME_NAME = _TOKENS["theme_name"]
 W, H = _TOKENS["slide"]["width_emu"], _TOKENS["slide"]["height_emu"]
 
 
+def font_file(style="Regular"):
+    """フォントの実ファイル。無ければ、何をすればいいかを書いて止まる（生のトレースを出さない）。"""
+    path = FONT_DIR / f'{FONT.replace(" ", "")}-{style}.ttf'
+    if not path.exists():
+        raise SystemExit(
+            f"\nフォントが見つかりません: {path}\n"
+            f"  {FONT} の「静的フォント」（Regular / Bold）を用意してください。\n"
+            "  ・Google Fonts からダウンロード → static フォルダの .ttf を使う（可変フォントは埋め込みに使えません）\n"
+            f"  ・置き場所は ~/Library/Fonts、または OFFICE3_FONT_DIR で指定\n"
+            "  ・埋め込みが不要なら --no-embed を付けて実行できます\n")
+    return path
+
+
 def shadow(dist, blur, alpha):
     return (f'<a:effectStyle><a:effectLst><a:outerShdw blurRad="{blur}" dist="{dist}" dir="2700000" '
             f'algn="tl" rotWithShape="0"><a:srgbClr val="1F4437"><a:alpha val="{alpha}"/></a:srgbClr>'
@@ -120,7 +133,18 @@ def guides(uri, items):
     return f'<p:extLst><p:ext uri="{uri}"><p15:sldGuideLst {P15}>{g}</p15:sldGuideLst></p:ext></p:extLst>'
 
 
-COPYRIGHT = "© 2026 Bigtree Lab"
+# ブランドに関する文字列は tokens.json の brand ブロックから引く（スクリプトに直書きしない）
+BRAND_INFO = {**{"name": THEME_NAME, "slug": "template", "url": "https://example.com",
+                 "copyright": f"© {THEME_NAME}", "logo": "assets/logo/logo.svg",
+                 "meta": "0000-00-00 ｜ 所属 ｜ 作成者"},
+              **_TOKENS.get("brand", {})}
+SLUG = BRAND_INFO["slug"]
+COPYRIGHT = BRAND_INFO["copyright"]
+
+
+def out_name(suffix):
+    """出力ファイル名。ブランドの slug から作る（例：bigtree_lab_sample.pptx）"""
+    return f"{SLUG}{suffix}"
 FOOT_Y, FOOT_H = H - M + 76200, 228600
 SLDNUM_BOX = (W - M - 914400, FOOT_Y, 914400, FOOT_H)
 TITLE_BOX = (M, M, W - 2 * M, 609600)
@@ -223,7 +247,7 @@ def slides():
     return [
         (1, slide([s_ph("Title", 'type="ctrTitle"', [(0, "Claude Code 製 POTX テスト")]),
                    s_ph("Subtitle", 'type="subTitle" idx="1"', [(0, "XML を直接書いて組み立てたテンプレート")]),
-                   s_ph("Meta", 'type="body" sz="quarter" idx="13"', [(0, "2026-09-18 ｜ Bigtree Lab ｜ だいき君")])])),
+                   s_ph("Meta", 'type="body" sz="quarter" idx="13"', [(0, BRAND_INFO["meta"])])])),
         (2, slide([s_ph("Title", 'type="title"', [(0, "第1章　背景")]), s_num()])),
         (3, slide([s_ph("Title", 'type="title"', [(0, "第2章　検証")]), s_num()])),
         (4, slide([s_ph("Title", 'type="title"', [(0, "テーマ・レイアウト・ガイドを XML で設定できた")]),
@@ -291,7 +315,7 @@ def build(path, template, embed):
             refs = ""
             for slot, ttf in slots:
                 n += 1
-                files[f"ppt/fonts/font{n}.fntdata"] = make_eot(FONT_DIR / ttf)
+                files[f"ppt/fonts/font{n}.fntdata"] = make_eot(font_file(ttf.split("-")[-1].replace(".ttf", "")))
                 pres_rels.append(("font", f"fonts/font{n}.fntdata"))
                 refs += f'<p:{slot} r:id="rId{len(pres_rels)}"/>'
             font_xml += f'<p:embeddedFont><p:font typeface="{face}" charset="-128"/>{refs}</p:embeddedFont>'

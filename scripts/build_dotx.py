@@ -2,9 +2,9 @@
 
 Capability test only: values (sizes, spacing) are placeholders.
 Outputs (build/):
-  bigtree_lab.dotx               template
-  bigtree_lab_sample.docx        sample document, grid OFF (recommended)
-  bigtree_lab_grid_on.docx       same content, Japanese line grid ON (B1 demo)
+  <slug>.dotx                    template
+  <slug>_sample.docx             sample document, grid OFF (recommended)
+  <slug>_grid_on.docx            same content, Japanese line grid ON (B1 demo)
 Usage: .venv/bin/python scripts/build_dotx.py
 """
 import struct
@@ -22,7 +22,8 @@ BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # br
 OUT = Path(os.environ.get("OFFICE3_OUT", ROOT / "build")).resolve()         # generated files (gitignored)
 OUT.mkdir(parents=True, exist_ok=True)
 FONT_DIR = Path(os.environ.get("OFFICE3_FONT_DIR", Path.home() / "Library/Fonts"))
-FIGURE = Path("/Users/shibanodaiki/0011_zenitha/tech_lab_blog/out/F-01_table.png")
+# 挿絵はブランド配下から読む（無ければ、その段落ごと飛ばす。落ちるより無いほうがいい）
+FIGURE = BRAND / "assets/sample/sample_figure.png"
 
 XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
 W_NS = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
@@ -228,7 +229,7 @@ def font_table(embed):
             for slot, ttf in slots:
                 n += 1
                 guid = "{" + str(uuid.uuid4()).upper() + "}"
-                parts.append((f"word/fonts/font{n}.odttf", obfuscate((FONT_DIR / ttf).read_bytes(), guid)))
+                parts.append((f"word/fonts/font{n}.odttf", obfuscate(build_potx.font_file(ttf.split("-")[-1].replace(".ttf", "")).read_bytes(), guid)))
                 rels.append(("font", f"fonts/font{n}.odttf"))
                 refs += f'<w:{slot} r:id="rId{n}" w:fontKey="{guid}"/>'
         parts_xml = (f'<w:font w:name="{face}"><w:charset w:val="80"/><w:family w:val="swiss"/>'
@@ -319,7 +320,7 @@ def sect_pr(grid_on):
 
 def footer():
     return (XML + f'<w:ftr {W_NS}><w:p><w:pPr><w:pStyle w:val="Footer"/></w:pPr>'
-            + run("© 2026 Bigtree Lab") + '<w:r><w:tab/></w:r>' + field("PAGE", "1") + run(" / ") + field("NUMPAGES", "1")
+            + run(build_potx.COPYRIGHT) + '<w:r><w:tab/></w:r>' + field("PAGE", "1") + run(" / ") + field("NUMPAGES", "1")
             + '</w:p></w:ftr>')
 
 
@@ -375,8 +376,9 @@ def body_sample(img_rid, img_cx, img_cy):
         p_style("Caption", "表 " + "") .replace("</w:p>", field("SEQ 表 \\* ARABIC", "1") + run("：サンプルの表（ダミー）") + "</w:p>"),
         p_style("Heading2", "挿絵"),
         para("挿絵は行内配置にしている。文章を加筆しても、画像は段落と一緒に流れる。"),
-        image(img_rid, img_cx, img_cy, "Figure 1"),
-        p_style("Caption", "図 ").replace("</w:p>", field("SEQ 図 \\* ARABIC", "1") + run("：サンプルの挿絵（ダミー）") + "</w:p>"),
+        (image(img_rid, img_cx, img_cy, "Figure 1")
+         + p_style("Caption", "図 ").replace("</w:p>", field("SEQ 図 \\* ARABIC", "1") + run("：サンプルの挿絵（ダミー）") + "</w:p>")
+         ) if img_rid else "",
         p_style("Heading3", "行間の確認用（英数字混じり）"),
         *[para(lorem) for _ in range(6)],
         p_style("Heading1", "まとめ"),
@@ -394,14 +396,19 @@ def build(path, kind, grid_on=False, embed=True):
     if kind == "template":
         body = body_template()
     else:
-        from PIL import Image
-        w, h = Image.open(FIGURE).size
-        cx = int(TEXT_W * 635 * 0.8)  # 80% of text width, twips→EMU
-        cy = int(cx * h / w)
-        files["word/media/image1.png"] = FIGURE.read_bytes()
-        extra_rels.append(f'<Relationship Id="rIdImg1" Type="{REL}/image" Target="media/image1.png"/>')
-        extra_rels.append(f'<Relationship Id="rIdLink" Type="{REL}/hyperlink" Target="https://note.com/bigtree_lab" TargetMode="External"/>')
-        body = body_sample("rIdImg1", cx, cy)
+        img_rid = cx = cy = None
+        if FIGURE.exists():
+            from PIL import Image
+            w, h = Image.open(FIGURE).size
+            cx = int(TEXT_W * 635 * 0.8)  # 80% of text width, twips→EMU
+            cy = int(cx * h / w)
+            files["word/media/image1.png"] = FIGURE.read_bytes()
+            extra_rels.append(f'<Relationship Id="rIdImg1" Type="{REL}/image" Target="media/image1.png"/>')
+            img_rid = "rIdImg1"
+        else:
+            print(f"  （挿絵が無いので、その段落は飛ばします: {FIGURE}）")
+        extra_rels.append(f'<Relationship Id="rIdLink" Type="{REL}/hyperlink" Target="{build_potx.BRAND_INFO["url"]}" TargetMode="External"/>')
+        body = body_sample(img_rid, cx, cy)
 
     main = "wordprocessingml.template.main+xml" if kind == "template" else "wordprocessingml.document.main+xml"
     files["word/document.xml"] = (XML + f'<w:document {W_NS} {DRAW_NS}><w:body>{body}{sect_pr(grid_on)}</w:body></w:document>')
@@ -455,12 +462,12 @@ def build(path, kind, grid_on=False, embed=True):
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     # --no-embed で公開用（フォントを埋め込まない）。scripts/publish_samples.py から使う
-    build(OUT / "bigtree_lab.dotx", "template", embed="--no-embed" not in sys.argv)
-    build(OUT / "bigtree_lab_sample.docx", "sample", grid_on=False, embed=False)  # samples stay light
-    build(OUT / "bigtree_lab_grid_on.docx", "sample", grid_on=True, embed=False)
+    build(OUT / build_potx.out_name(".dotx"), "template", embed="--no-embed" not in sys.argv)
+    build(OUT / build_potx.out_name("_sample.docx"), "sample", grid_on=False, embed=False)  # samples stay light
+    build(OUT / build_potx.out_name("_grid_on.docx"), "sample", grid_on=True, embed=False)
     # B1 の比較デモ：行間を Word 既定（自動）に戻した状態で、グリッドの有無を比べる。
     # 固定行間のままだと行がグリッドに吸着しないため、差が出ない（＝固定行間はグリッド対策にもなっている）
     AUTO_LINE[0] = True
-    build(OUT / "bigtree_lab_grid_demo_off.docx", "sample", grid_on=False, embed=False)
-    build(OUT / "bigtree_lab_grid_demo_on.docx", "sample", grid_on=True, embed=False)
+    build(OUT / build_potx.out_name("_grid_demo_off.docx"), "sample", grid_on=False, embed=False)
+    build(OUT / build_potx.out_name("_grid_demo_on.docx"), "sample", grid_on=True, embed=False)
     AUTO_LINE[0] = False

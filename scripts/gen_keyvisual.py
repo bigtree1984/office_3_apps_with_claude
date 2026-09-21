@@ -1,6 +1,13 @@
-"""Generate key-visual candidates (photorealistic) with Vertex AI Gemini (reuses the character-image-gen tool's setup/venv).
+"""キービジュアル候補（写真調）を Vertex AI Gemini で作る。
 
-Run with: ~/0011_zenitha/hq/tools/character-image-gen/.venv/bin/python scripts/gen_keyvisual.py
+この一式の中では**任意**のスクリプト。画像を自前で用意するなら要らない。
+
+必要なもの
+  - Google Cloud のプロジェクトと、Vertex AI の有効化
+  - `pip install google-genai` と、ADC でのログイン（`gcloud auth application-default login`）
+  - 環境変数 `GOOGLE_CLOUD_PROJECT`（未設定なら実行時に教えてもらう）
+
+使い方: GOOGLE_CLOUD_PROJECT=your-project .venv/bin/python scripts/gen_keyvisual.py
 """
 import os
 import sys
@@ -12,7 +19,10 @@ import os
 BRAND = Path(os.environ.get("OFFICE3_BRAND", Path(__file__).resolve().parent.parent / "bigtree")).resolve()
 OUT = BRAND / "assets/keyvisual"
 OUT.mkdir(parents=True, exist_ok=True)
-client = genai.Client(vertexai=True, project="zenitha-lab", location="us-central1")
+PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
+if not PROJECT:
+    raise SystemExit("GOOGLE_CLOUD_PROJECT を指定してください（例: GOOGLE_CLOUD_PROJECT=my-project .venv/bin/python scripts/gen_keyvisual.py）")
+client = genai.Client(vertexai=True, project=PROJECT, location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"))
 
 STYLE = ("Photorealistic, natural photograph, shot on a full-frame camera, 35mm lens, soft natural light, shallow haze, "
          "calm and quiet mood, muted natural color grading leaning toward deep forest green and warm cream tones. "

@@ -118,4 +118,9 @@ def main(xlsx_path, docs):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        raise SystemExit(
+            "使い方: .venv/bin/python scripts/check_chart_drift.py <正となる Excel> <確認する pptx / docx> [...]\n"
+            "  例: .venv/bin/python scripts/check_chart_drift.py build/charts/report_charts.xlsx build/bigtree_lab_charts.pptx\n"
+            "  グラフ枠の名前（graphN）とシート名（dataN）を突き合わせ、値のずれを報告します。")
     sys.exit(main(sys.argv[1], sys.argv[2:]))

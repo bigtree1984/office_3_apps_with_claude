@@ -1,6 +1,6 @@
 """Figma layout export (design/figma_layouts.json) + tokens (design/tokens.json) -> POTX and a sample PPTX.
 
-Flow: Figma (SSOT) --use_figma export--> design/figma_layouts.json --this script--> build/bigtree_lab.potx
+Flow: Figma (SSOT) --use_figma export--> design/figma_layouts.json --this script--> build/<slug>.potx
 Units: Figma px (1440x810) -> EMU at 6350 EMU/px (10in slide), font px/2 = pt.
 Usage: .venv/bin/python scripts/build_potx_figma.py [--no-embed]
 """
@@ -24,6 +24,7 @@ EMU = bp.W / SPEC["frame"][0]  # 6350
 XML, NS, REL, CT = bp.XML, bp.NS, bp.REL, bp.CT
 SCHEME = {"dk1": "tx1", "lt1": "bg1", "dk2": "tx2", "lt2": "bg2"}
 STYLES = bp._TOKENS["type_pptx"]["roles"]   # 文字スタイルの正は tokens.json
+BRAND_NAME = bp.BRAND_INFO["name"]         # ブランド名の正は tokens.json の brand
 
 
 def e(px):
@@ -70,7 +71,7 @@ ZERO = 'lIns="0" tIns="0" rIns="0" bIns="0"'
 
 # ---------------------------------------------------------------- logo geometry (from the SVG made by dxf_to_svg.py)
 def logo_paths():
-    svg = (BRAND / "assets/logo/260920_BT_logo.svg").read_text()
+    svg = (BRAND / bp.BRAND_INFO["logo"]).read_text()
     vw, vh = [float(v) for v in re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', svg).groups()]
     d = re.search(r' d="([^"]+)"', svg).group(1)
     subs = [[tuple(float(v) for v in p.split(",")) for p in re.split(r"\s*L\s*", s.strip())] for s in re.findall(r"M([^Z]+)Z", d)]
@@ -86,7 +87,7 @@ def logo(item):
         f'<a:path w="{int(LOGO_W * k)}" h="{int(LOGO_H * k)}"><a:moveTo><a:pt x="{int(s[0][0] * k)}" y="{int(s[0][1] * k)}"/></a:moveTo>'
         + "".join(f'<a:lnTo><a:pt x="{int(x * k)}" y="{int(y * k)}"/></a:lnTo>' for x, y in s[1:]) + '<a:close/></a:path>'
         for s in LOGO_SUBS)
-    return (f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}" descr="Bigtree Lab ロゴ"/><p:cNvSpPr/><p:nvPr userDrawn="1"/></p:nvSpPr>'
+    return (f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}" descr="{BRAND_NAME} ロゴ"/><p:cNvSpPr/><p:nvPr userDrawn="1"/></p:nvSpPr>'
             f'<p:spPr>{xfrm(item["box"])}<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/>'
             f'<a:pathLst>{paths}</a:pathLst></a:custGeom>{clr(item["color"], item.get("opacity"))}<a:ln><a:noFill/></a:ln></p:spPr></p:sp>')
 
@@ -148,7 +149,20 @@ def ph_attr(item):
     return (typ + idx + sz).strip()
 
 
+# Figma の書き出しにはブランドの文字列が入っている。名前で拾って tokens.json の brand で上書きする
+# （そうしないと、トークンを差し替えても「© 2026 前のブランド名」が残る）
+BRAND_TEXT = {"Copyright": bp.BRAND_INFO["copyright"], "Meta": bp.BRAND_INFO["meta"]}
+
+
+def with_brand(item):
+    """Copyright / Meta は、書き出しの文字ではなく tokens.json の brand を使う。"""
+    if item.get("name") in BRAND_TEXT and item.get("text"):
+        return {**item, "text": BRAND_TEXT[item["name"]]}
+    return item
+
+
 def placeholder(item, on_slide=False, content=None, master=False):
+    item = with_brand(item)
     attr = ph_attr(item)
     # 折り返しをオフにしてあるので、長すぎる文字は枠の外へ出る。作った時点で気づけるように警告する
     if item.get("text") and item["ph"] not in ("obj", "sldNum"):
@@ -210,7 +224,7 @@ def table_styles():
     header_bdr = ("<a:left>" + nl + "</a:left><a:right>" + nl + "</a:right><a:top>" + nl + "</a:top>"
                   + "<a:bottom>" + ln(2, "accent1") + "</a:bottom><a:insideV>" + nl + "</a:insideV>")
     return (XML + '<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
-            f'def="{TABLE_STYLE_ID}"><a:tblStyle styleId="{TABLE_STYLE_ID}" styleName="Bigtree Lab 表">'
+            f'def="{TABLE_STYLE_ID}"><a:tblStyle styleId="{TABLE_STYLE_ID}" styleName="{BRAND_NAME} 表">'
             # whole table: horizontal rules only, no outer frame (0304 rule)
             f'<a:wholeTbl>{cell(inside, none)}{txt("dk1", False)}</a:wholeTbl>'
             f'<a:band2H>{cell("", fill_of("lt2"))}</a:band2H>'
@@ -263,7 +277,7 @@ def layout(spec):
         elif k == "rect":
             shapes.append(rect(it))
         elif k == "text":
-            shapes.append(text(it))
+            shapes.append(text(with_brand(it)))
         elif k == "ph":
             shapes.append(placeholder(it))
     g = guides_xml(spec["guides"], "{DCECCB84-F9BA-43D5-87BE-67443E8EF086}", "layout")
@@ -348,7 +362,7 @@ def build(path, template, embed):
             refs = ""
             for slot, ttf in slots:
                 n += 1
-                files[f"ppt/fonts/font{n}.fntdata"] = bp.make_eot(bp.FONT_DIR / ttf)
+                files[f"ppt/fonts/font{n}.fntdata"] = bp.make_eot(bp.font_file(ttf.split("-")[-1].replace(".ttf", "")))
                 pres_rels.append((R("font"), f"fonts/font{n}.fntdata"))
                 refs += f'<p:{slot} r:id="rId{len(pres_rels)}"/>'
             font_xml += f'<p:embeddedFont><p:font typeface="{face}" charset="-128"/>{refs}</p:embeddedFont>'
@@ -367,7 +381,7 @@ def build(path, template, embed):
     files["ppt/viewProps.xml"] = XML + f'<p:viewPr {NS}><p:gridSpacing cx="76200" cy="76200"/></p:viewPr>'
     files["ppt/tableStyles.xml"] = table_styles()
     files["docProps/core.xml"] = (XML + '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
-                                  'xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Bigtree Lab template</dc:title>'
+                                  f'xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{BRAND_NAME} template</dc:title>'
                                   '<dc:creator>Claude Code</dc:creator></cp:coreProperties>')
     files["docProps/app.xml"] = (XML + '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'
                                  '<Application>Claude Code</Application></Properties>')
@@ -398,5 +412,5 @@ def build(path, template, embed):
 
 if __name__ == "__main__":
     embed = "--no-embed" not in sys.argv
-    build(OUT / "bigtree_lab.potx", template=True, embed=embed)
-    build(OUT / "bigtree_lab_sample.pptx", template=False, embed=embed)
+    build(OUT / bp.out_name(".potx"), template=True, embed=embed)
+    build(OUT / bp.out_name("_sample.pptx"), template=False, embed=embed)

@@ -22,8 +22,7 @@ WARNED = set()
 @functools.lru_cache(maxsize=None)
 def _font(weight):
     from fontTools.ttLib import TTFont
-    family = bp.FONT.replace(" ", "")
-    f = TTFont(bp.FONT_DIR / f"{family}-{weight}.ttf", lazy=True)
+    f = TTFont(bp.font_file(weight), lazy=True)
     return f.getBestCmap(), f["hmtx"], f["head"].unitsPerEm
 
 

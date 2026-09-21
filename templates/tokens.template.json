@@ -2,6 +2,14 @@
   "_source": "（ここに自分の Figma ファイル名と fileKey を書く）。値は Figma が正。変えたらこのファイルに書き出し直す。",
   "_exported": "YYYY-MM-DD",
   "theme_name": "（テーマ名）",
+  "brand": {
+    "name": "あなたのブランド名",
+    "slug": "my_brand",
+    "url": "https://example.com",
+    "copyright": "© 2026 あなたのブランド名",
+    "logo": "assets/logo/logo.svg",
+    "meta": "0000-00-00 ｜ 所属 ｜ 作成者"
+  },
   "colors": {
     "dk1": "RRGGBB",
     "lt1": "RRGGBB",

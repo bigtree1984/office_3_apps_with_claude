@@ -1,7 +1,7 @@
 # Organism 棚卸し（2026-09-20）
 
-出典：【0304】Figma `260911 Slide Design System KP`（fileKey `sLWacOQZLeulkjzbxND3jR`）の「① Atomic Design」→「06 Organisms」、
-および `/Users/shibanodaiki/0015_slide_creator/02_organism_list.md`・`03_token_atom_decisions.md`。
+出典：別途作成したスライド用デザインシステム（Figma の Atomic Design ページ）の Organism 一覧をもとに、
+この一式向けに整理し直したもの。
 
 ## 一覧（17種・バリアント込み19フレーム）
 

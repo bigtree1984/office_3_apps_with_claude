@@ -3,8 +3,8 @@
 Rule (REQUIREMENTS D3): the companion Excel (data1, graph1, data2, graph2 ...) is the source of truth;
 charts embedded in PPTX / DOCX are copies regenerated from it.
 
-Inputs : build/test_sample.pptx, build/bigtree_lab_sample.docx (from build_potx.py / build_dotx.py)
-Outputs: build/charts/report_charts.xlsx, build/bigtree_lab_charts.pptx, build/bigtree_lab_charts.docx
+Inputs : build/<slug>_sample.pptx, build/<slug>_sample.docx (from build_potx_figma.py / build_dotx.py)
+Outputs: build/charts/report_charts.xlsx, build/<slug>_charts.pptx, build/<slug>_charts.docx
 Usage  : .venv/bin/python scripts/build_charts.py
 """
 import io
@@ -658,5 +658,5 @@ if __name__ == "__main__":
         order += [("sheet", ch["data"], sheet_xml(ch)), (body[0], ch["name"], body[1])]
     (OUT / "charts/report_charts.xlsx").write_bytes(xlsx(order))
     print("wrote build/charts/report_charts.xlsx")
-    inject_pptx(OUT / "bigtree_lab_sample.pptx", OUT / "bigtree_lab_charts.pptx")
-    inject_docx(OUT / "bigtree_lab_sample.docx", OUT / "bigtree_lab_charts.docx")
+    inject_pptx(OUT / build_potx.out_name("_sample.pptx"), OUT / build_potx.out_name("_charts.pptx"))
+    inject_docx(OUT / build_potx.out_name("_sample.docx"), OUT / build_potx.out_name("_charts.docx"))

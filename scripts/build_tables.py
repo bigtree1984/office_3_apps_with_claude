@@ -2,7 +2,7 @@
 
 Tables are real PowerPoint tables, so rows/columns stay editable and the look comes from
 the style defined in the template (ppt/tableStyles.xml), not from per-cell formatting.
-Input : build/bigtree_lab_organisms.pptx    Output: build/bigtree_lab_tables.pptx
+Input : build/<slug>_organisms.pptx    Output: build/<slug>_tables.pptx
 Usage : .venv/bin/python scripts/build_tables.py
 """
 import re
@@ -118,7 +118,7 @@ def main():
     body = next(l for l in bpf.SPEC["layouts"] if l["name"] == "06_本文")
     it = {i["name"]: i for i in body["items"]}
     cx, cy, cw, ch = it["Content"]["box"]
-    f = bc.read_zip(OUT / "bigtree_lab_organisms.pptx")
+    f = bc.read_zip(OUT / bpf.bp.out_name("_organisms.pptx"))
     ct, pres = f["[Content_Types].xml"].decode(), f["ppt/presentation.xml"].decode()
     prels = f["ppt/_rels/presentation.xml.rels"].decode()
     n = len([k for k in f if re.match(r"ppt/slides/slide\d+\.xml$", k)])
@@ -143,7 +143,7 @@ def main():
         pres = pres.replace("</p:sldIdLst>", f'<p:sldId id="{500 + i}" r:id="{rid}"/></p:sldIdLst>')
         ct = bc.add_override(ct, f"/ppt/slides/slide{sn}.xml", f"{bp.CT}.presentationml.slide+xml")
     f["[Content_Types].xml"], f["ppt/presentation.xml"], f["ppt/_rels/presentation.xml.rels"] = ct.encode(), pres.encode(), prels.encode()
-    out = OUT / "bigtree_lab_tables.pptx"
+    out = OUT / bpf.bp.out_name("_tables.pptx")
     out.write_bytes(bc.zip_bytes(f))
     print(f"wrote {out.relative_to(OUT.parent)}")
 
