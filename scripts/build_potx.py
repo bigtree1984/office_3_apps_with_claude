@@ -10,10 +10,10 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # brand values (tokens, assets, templates)
-OUT = Path(os.environ.get("OFFICE3_OUT", ROOT / "build")).resolve()         # generated files (gitignored)
+BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()   # brand values (tokens, assets, templates)
+OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()         # generated files (gitignored)
 OUT.mkdir(parents=True, exist_ok=True)
-FONT_DIR = Path(os.environ.get("OFFICE3_FONT_DIR", Path.home() / "Library/Fonts"))
+FONT_DIR = Path(os.environ.get("OFFICE3_FONT_DIR") or Path.home() / "Library/Fonts")
 
 W, H = 9144000, 5143500            # 16:9, 10in x 5.625in (Google Slides size; placeholder, overwritten below from tokens)
 EMU_PER_GUIDE = 1587.5            # guide pos unit = 1/8 pt

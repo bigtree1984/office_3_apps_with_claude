@@ -7,7 +7,7 @@ Office ファイルは ZIP の中に XML が入っているだけなので、ラ
 XML を直接書けば全部設定できます。ここにあるのは、その進め方（PLAYBOOK）と、実際に動くスクリプト、
 そして一式を作り切った完成見本です。
 
-- 使っているライブラリ：`fonttools`（フォント埋め込み）、`pillow`、`ezdxf` / `shapely`（ロゴ変換）だけ。
+- 使っているライブラリ：`fonttools`（フォント埋め込み）、`pillow` だけ。`ezdxf` / `shapely` は `dxf_to_svg.py`（CAD から SVG を作る**任意**の道具）用で、ロゴが SVG なら要りません。
   **python-pptx / python-docx は使っていません**（テーマ・マスター・ガイド・埋め込みフォントを触れないため）。
 - デザインの正（SSOT）は Figma。Figma から値とレイアウトを書き出して、スクリプトが POTX / DOTX を組み立てます。
 

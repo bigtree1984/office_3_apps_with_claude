@@ -18,10 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_potx  # noqa: E402  (theme is shared with PowerPoint)
 
 ROOT = Path(__file__).resolve().parent.parent
-BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # brand values (tokens, assets, templates)
-OUT = Path(os.environ.get("OFFICE3_OUT", ROOT / "build")).resolve()         # generated files (gitignored)
+BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()   # brand values (tokens, assets, templates)
+OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()         # generated files (gitignored)
 OUT.mkdir(parents=True, exist_ok=True)
-FONT_DIR = Path(os.environ.get("OFFICE3_FONT_DIR", Path.home() / "Library/Fonts"))
+FONT_DIR = Path(os.environ.get("OFFICE3_FONT_DIR") or Path.home() / "Library/Fonts")
 # 挿絵はブランド配下から読む（無ければ、その段落ごと飛ばす。落ちるより無いほうがいい）
 FIGURE = BRAND / "assets/sample/sample_figure.png"
 

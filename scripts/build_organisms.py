@@ -18,8 +18,8 @@ import build_potx_figma as bpf  # noqa: E402
 import build_charts as bc  # noqa: E402  (zip / rels helpers)
 
 ROOT = Path(__file__).resolve().parent.parent
-BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # brand values (tokens, assets, templates)
-OUT = Path(os.environ.get("OFFICE3_OUT", ROOT / "build")).resolve()         # generated files (gitignored)
+BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()   # brand values (tokens, assets, templates)
+OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()         # generated files (gitignored)
 OUT.mkdir(parents=True, exist_ok=True)
 ORG = json.loads((BRAND / "design/figma_organisms.json").read_text())["organisms"]
 STYLE_KEY = {"本文": "body", "リード文": "lead", "補足・グラフ・表": "caption", "最小（ページ番号等）": "min",

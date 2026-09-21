@@ -8,6 +8,7 @@
   - `design/figma_layouts.json` のレイアウトと `design/figma_organisms.json` の図解を、実寸の比率で描く
   - 要素にカーソルを乗せると**名前と座標**が出る。クリックすると、そのまま貼れる形でコピーされる
   - ガイド（余白・セーフゾーン）の表示切り替え
+  - **地色に対して文字が読めるかを警告**（WCAG のコントラスト比。**直すのは人**だが、危ない場所は指させる）
   - **文字のはみ出しを警告**（`fit_text.py` と同じ計算）。レイアウトのプレースホルダは折り返しオフなので
     「幅を超えたら警告」、図解の中の文字は折り返すので「枠の行数を超えたら警告」
 
@@ -27,11 +28,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_potx as bp       # noqa: E402  (tokens)
+import build_potx_figma as bpf  # noqa: E402  (Copyright / Meta のブランド置換を共有する)
 import fit_text as ft         # noqa: E402  (はみ出しの判定)
 
 ROOT = Path(__file__).resolve().parent.parent
-BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()
-OUT = Path(os.environ.get("OFFICE3_OUT", ROOT / "build")).resolve()
+BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()
+OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()
 OUT.mkdir(parents=True, exist_ok=True)
 
 TOKENS = bp._TOKENS
@@ -67,6 +69,41 @@ def data_uri(path):
            + base64.b64encode(path.read_bytes()).decode()
 
 
+def rgb(color):
+    """トークン名でも 6桁の hex でも受け取って (r, g, b) にする。"""
+    h = COLORS.get(color, color if isinstance(color, str) and len(color) == 6 else "888888")
+    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def blend(fg, bg, alpha):
+    """半透明の塗りを下の色と混ぜる（薄い塗りを不透明として測ると誤検知になる）。"""
+    a, b = rgb(fg), rgb(bg)
+    return "".join(f"{int(round((a[i] * alpha + b[i] * (1 - alpha)) * 255)):02x}" for i in range(3))
+
+
+def contrast(fg, bg):
+    """2色のコントラスト比（WCAG）。"""
+    def lum(color):
+        r, g, b = rgb(color)
+        f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    a, b = sorted((lum(fg), lum(bg)))
+    return (b + 0.05) / (a + 0.05)
+
+
+def contrast_warn(color, bg, role):
+    """地色に対して文字が読めるか。**直すのは人**だが、どこが危ないかは指させるようにする。"""
+    if not bg:
+        return ""
+    ratio = contrast(color, bg)
+    # しきい値は 3.0。WCAG の本文基準は 4.5 だが、そこまで出すと補足文字がほぼ全部鳴って
+    # 警告が無視されるようになる。ここで拾いたいのは「読めない」（地色と同系）で、
+    # 細かい詰めは人が目で見て決める（notes/TEXT_LAYOUT_NOTES.md §10）
+    if ratio < 3.0:
+        return f"コントラスト {ratio:.1f}:1（3.0 未満＝読みにくい）"
+    return ""
+
+
 def el(name, x, y, w, h, inner="", css="", warn=""):
     """1つの要素。名前と座標を data 属性で持たせ、カーソルとクリックで拾えるようにする。"""
     return (f'<div class="el{" warn" if warn else ""}" style="left:{x}px;top:{y}px;width:{w}px;height:{h}px;{css}" '
@@ -74,15 +111,17 @@ def el(name, x, y, w, h, inner="", css="", warn=""):
             + (f' data-warn="{esc(warn)}"' if warn else "") + f'>{inner}</div>')
 
 
-def text_el(name, box, text, role, color, align="left", opacity=1, wrap=False):
+def text_el(name, box, text, role, color, align="left", opacity=1, wrap=False, bg=None):
     """wrap=True（図解の中）は枠の高さまで折り返せる。False（レイアウトのプレースホルダ）は1行で溢れる。"""
     x, y, w, h = box
+    cw = contrast_warn(color, bg, role)
     if wrap:
         ok, need, avail = ft.fits_box(text, role, w, h)
         warn = "" if ok else f"{need}行必要（枠は{avail}行）"
     else:
         ok, over, ratio = ft.fits(text, role, w)
         warn = "" if ok else f"はみ出し {over:.0f}pt（枠の {ratio * 100:.0f}%）"
+    warn = "／".join(x for x in (warn, cw) if x)
     inner = f'<span class="t">{esc(text).replace(chr(10), "<br>")}</span>'
     css = (f'color:{hexc(color, opacity)};{font_css(role)}text-align:{ALIGN.get(align, "left")};'
            'display:flex;align-items:center;' + ("" if wrap else "white-space:pre;"))
@@ -91,6 +130,7 @@ def text_el(name, box, text, role, color, align="left", opacity=1, wrap=False):
 
 def layout_html(lay, assets):
     body = ""
+    bg = lay["bg"]
     for it in lay["items"]:
         kind, name = it.get("kind"), it["name"]
         if kind == "picture":
@@ -107,6 +147,7 @@ def layout_html(lay, assets):
             x, y, w, h = it["box"]
             body += el(name, x, y, w, h, "", f'background:{hexc(it.get("color", "dk1"), it.get("opacity", 1))};')
         elif kind in ("ph", "text"):
+            it = bpf.with_brand(it)          # 出力と同じ文字を見せる（§ ③ プレビューと実物がズレていた）
             if it.get("ph") == "sldNum":
                 txt = "3"
             else:
@@ -116,7 +157,7 @@ def layout_html(lay, assets):
                 body += el(name, x, y, w, h, '<span class="empty">（中身はスライドで入る）</span>',
                            "border:1px dashed rgba(0,0,0,.2);color:#999;font-size:20px;")
                 continue
-            e = text_el(name, it["box"], txt, it.get("style", "body"), it.get("color", "dk1"), it.get("align", "l"))
+            e = text_el(name, it["box"], txt, it.get("style", "body"), it.get("color", "dk1"), it.get("align", "l"), bg=bg)
             if it.get("pill"):
                 e = e.replace('class="el', 'class="el pill', 1)
             body += e
@@ -127,14 +168,27 @@ def layout_html(lay, assets):
     return body, guides
 
 
+def under_fill(items, upto, box, frame_bg="lt1"):
+    """その文字の下に敷かれている色を、重なり順に混ぜながら求める。"""
+    cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
+    under = frame_bg
+    for it in items[:upto]:
+        if it["type"] == "TEXT":
+            continue
+        if it["x"] <= cx <= it["x"] + it["w"] and it["y"] <= cy <= it["y"] + it["h"]:
+            under = blend(it.get("fill", "dk1"), under, it.get("fillOpacity", 1))
+    return under
+
+
 def organism_html(org):
     body = ""
-    for it in org["items"]:
+    for idx, it in enumerate(org["items"]):
         x, y, w, h = it["x"], it["y"], it["w"], it["h"]
         t, name, fill, op = it["type"], it["name"], it.get("fill", "dk1"), it.get("fillOpacity", 1)
         if t == "TEXT":
             body += text_el(name, [x, y, w, h], it.get("text", ""), STYLE_KEY.get(it.get("style"), "body"),
-                            fill, it.get("align", "LEFT"), op, wrap=True)
+                            fill, it.get("align", "LEFT"), op, wrap=True,
+                            bg=under_fill(org["items"], idx, [x, y, w, h]))
         elif t == "ELLIPSE":
             body += el(name, x, y, w, h, "", f'background:{hexc(fill, op)};border-radius:50%;')
         elif t in ("VECTOR", "POLYGON") and it.get("path"):

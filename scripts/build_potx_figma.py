@@ -5,6 +5,7 @@ Units: Figma px (1440x810) -> EMU at 6350 EMU/px (10in slide), font px/2 = pt.
 Usage: .venv/bin/python scripts/build_potx_figma.py [--no-embed]
 """
 import json
+import math
 import re
 import os
 import sys
@@ -16,8 +17,8 @@ import build_potx as bp  # noqa: E402  (theme, EOT embedding, guides helper)
 import fit_text as ft  # noqa: E402  (はみ出し警告)
 
 ROOT = Path(__file__).resolve().parent.parent
-BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # brand values (tokens, assets, templates)
-OUT = Path(os.environ.get("OFFICE3_OUT", ROOT / "build")).resolve()         # generated files (gitignored)
+BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()   # brand values (tokens, assets, templates)
+OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()         # generated files (gitignored)
 OUT.mkdir(parents=True, exist_ok=True)
 SPEC = json.loads((BRAND / "design/figma_layouts.json").read_text())
 EMU = bp.W / SPEC["frame"][0]  # 6350
@@ -69,27 +70,169 @@ def bp_esc(s):
 ZERO = 'lIns="0" tIns="0" rIns="0" bIns="0"'
 
 
-# ---------------------------------------------------------------- logo geometry (from the SVG made by dxf_to_svg.py)
+# ---------------------------------------------------------------- logo geometry (SVG -> custGeom)
+# 対応：viewBox のオフセット、複数の <path>、path ごとの fill、M/L/H/V/C/S（絶対・相対）と Z。
+# 多色のロゴは「1パス＝1図形」で重ねる。fill が無い SVG は、レイアウト側の色（テーマ色）で塗る。
+SVG_NUM = re.compile(r"[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?")
+SVG_CMD = re.compile(r"([MmLlHhVvCcSsZz])([^MmLlHhVvCcSsZz]*)")
+
+
+def svg_subpaths(d):
+    """SVG の d 属性を、絶対座標のサブパス [(始点, [('L',p) | ('C',p1,p2,p3), ...]), ...] にする。"""
+    subs, cur, start, pos, prev_c2 = [], None, (0.0, 0.0), (0.0, 0.0), None
+    for cmd, body in SVG_CMD.findall(d):
+        n = [float(v) for v in SVG_NUM.findall(body)]
+        rel = cmd.islower()
+        c = cmd.upper()
+        if c == "Z":
+            if cur:
+                subs.append(cur)
+                cur, pos, prev_c2 = None, start, None
+            continue
+        i = 0
+        while i < len(n) or (c == "M" and i == 0):
+            if c == "M":
+                p = (n[i] + (pos[0] if rel else 0), n[i + 1] + (pos[1] if rel else 0))
+                if cur:
+                    subs.append(cur)
+                cur, start, pos, prev_c2 = (p, []), p, p, None
+                i += 2
+                c = "L"          # M のあとに続く座標は L 扱い（SVG の仕様）
+            elif c in ("L", "T"):
+                p = (n[i] + (pos[0] if rel else 0), n[i + 1] + (pos[1] if rel else 0))
+                cur[1].append(("L", p)); pos, prev_c2 = p, None; i += 2
+            elif c == "H":
+                p = (n[i] + (pos[0] if rel else 0), pos[1])
+                cur[1].append(("L", p)); pos, prev_c2 = p, None; i += 1
+            elif c == "V":
+                p = (pos[0], n[i] + (pos[1] if rel else 0))
+                cur[1].append(("L", p)); pos, prev_c2 = p, None; i += 1
+            elif c == "C":
+                ox, oy = pos if rel else (0.0, 0.0)
+                p1, p2, p3 = ((n[i] + ox, n[i + 1] + oy), (n[i + 2] + ox, n[i + 3] + oy), (n[i + 4] + ox, n[i + 5] + oy))
+                cur[1].append(("C", p1, p2, p3)); pos, prev_c2 = p3, p2; i += 6
+            elif c == "S":
+                ox, oy = pos if rel else (0.0, 0.0)
+                p1 = (2 * pos[0] - prev_c2[0], 2 * pos[1] - prev_c2[1]) if prev_c2 else pos
+                p2, p3 = (n[i] + ox, n[i + 1] + oy), (n[i + 2] + ox, n[i + 3] + oy)
+                cur[1].append(("C", p1, p2, p3)); pos, prev_c2 = p3, p2; i += 4
+            else:
+                raise ValueError(f"未対応の SVG コマンド: {cmd}")
+            if i >= len(n):
+                break
+    if cur:
+        subs.append(cur)
+    return subs
+
+
+SVG_TF = re.compile(r"(matrix|translate|scale|rotate)\s*\(([^)]*)\)")
+
+
+def tf_mul(m, n):
+    """2つのアフィン変換 (a,b,c,d,e,f) を合成する（m のあとに n を内側で適用）。"""
+    a, b, c, d, e, f = m
+    A, B, C, D, E, F = n
+    return (a * A + c * B, b * A + d * B, a * C + c * D, b * C + d * D, a * E + c * F + e, b * E + d * F + f)
+
+
+def tf_parse(s):
+    """transform 属性 -> アフィン変換。translate / scale / rotate / matrix に対応。"""
+    m = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    for fn, body in SVG_TF.findall(s or ""):
+        v = [float(x) for x in SVG_NUM.findall(body)]
+        if fn == "translate":
+            n = (1, 0, 0, 1, v[0], v[1] if len(v) > 1 else 0)
+        elif fn == "scale":
+            n = (v[0], 0, 0, v[1] if len(v) > 1 else v[0], 0, 0)
+        elif fn == "rotate":
+            r = math.radians(v[0])
+            n = (math.cos(r), math.sin(r), -math.sin(r), math.cos(r), 0, 0)
+            if len(v) == 3:   # 回転中心つき
+                n = tf_mul(tf_mul((1, 0, 0, 1, v[1], v[2]), n), (1, 0, 0, 1, -v[1], -v[2]))
+        else:
+            n = tuple(v[:6])
+        m = tf_mul(m, n)
+    return m
+
+
+def tf_apply(m, p):
+    a, b, c, d, e, f = m
+    return (a * p[0] + c * p[1] + e, b * p[0] + d * p[1] + f)
+
+
 def logo_paths():
+    """ロゴ SVG を (幅, 高さ, [(fill|None, サブパス), ...]) にする。
+    <g> の transform を積み、viewBox の原点を 0 に寄せた絶対座標で返す。"""
     svg = (BRAND / bp.BRAND_INFO["logo"]).read_text()
-    vw, vh = [float(v) for v in re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', svg).groups()]
-    d = re.search(r' d="([^"]+)"', svg).group(1)
-    subs = [[tuple(float(v) for v in p.split(",")) for p in re.split(r"\s*L\s*", s.strip())] for s in re.findall(r"M([^Z]+)Z", d)]
-    return vw, vh, subs
+    vb = re.search(r'viewBox="([-\d.eE]+)[,\s]+([-\d.eE]+)[,\s]+([\d.eE]+)[,\s]+([\d.eE]+)"', svg)
+    if not vb:
+        raise ValueError(f'{bp.BRAND_INFO["logo"]} に viewBox がありません')
+    vx, vy, vw, vh = [float(v) for v in vb.groups()]
+    out, stack = [], [((1.0, 0.0, 0.0, 1.0, 0.0, 0.0), None)]   # (変換, 継承した fill)
+    for tag in re.findall(r"<[^>]+>", svg):
+        name = re.match(r"<\s*(/?)\s*([a-zA-Z]+)", tag)
+        if not name:
+            continue
+        closing, el = name.group(1), name.group(2)
+        if el == "g" and closing:
+            if len(stack) > 1:
+                stack.pop()
+            continue
+        tr = re.search(r' transform="([^"]*)"', tag)
+        fl = re.search(r' fill="(#[0-9A-Fa-f]{6})"', tag)
+        m = tf_mul(stack[-1][0], tf_parse(tr.group(1))) if tr else stack[-1][0]
+        fill = fl.group(1)[1:].upper() if fl else stack[-1][1]
+        if el == "g":
+            if not tag.rstrip().endswith("/>"):
+                stack.append((m, fill))
+            continue
+        if el != "path":
+            continue
+        d = re.search(r' d="([^"]+)"', tag)
+        if not d:
+            continue
+        subs = []
+        for start, segs in svg_subpaths(d.group(1)):
+            T = lambda p: (lambda q: (q[0] - vx, q[1] - vy))(tf_apply(m, p))
+            subs.append((T(start), [(seg[0], *[T(p) for p in seg[1:]]) for seg in segs]))
+        out.append((fill, subs))
+    if not out:
+        raise ValueError(f'{bp.BRAND_INFO["logo"]} に <path> がありません')
+    return vw, vh, out
 
 
-LOGO_W, LOGO_H, LOGO_SUBS = logo_paths()
+LOGO_W, LOGO_H, LOGO_SHAPES = logo_paths()
+LOGO_MULTICOLOR = len({f for f, _ in LOGO_SHAPES if f}) > 1
 
 
 def logo(item):
-    k = 1000  # path units: 1/1000 of an svg unit
-    paths = "".join(
-        f'<a:path w="{int(LOGO_W * k)}" h="{int(LOGO_H * k)}"><a:moveTo><a:pt x="{int(s[0][0] * k)}" y="{int(s[0][1] * k)}"/></a:moveTo>'
-        + "".join(f'<a:lnTo><a:pt x="{int(x * k)}" y="{int(y * k)}"/></a:lnTo>' for x, y in s[1:]) + '<a:close/></a:path>'
-        for s in LOGO_SUBS)
-    return (f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}" descr="{BRAND_NAME} ロゴ"/><p:cNvSpPr/><p:nvPr userDrawn="1"/></p:nvSpPr>'
+    """ロゴ。多色 SVG は path ごとに図形を重ねる（単色 SVG はレイアウトの色で塗る）。
+    パス座標は図形の枠の EMU に直して書く（<a:path w/h> の換算に頼らない。頼ると
+    その換算を見ないレンダラで小さく描かれる）。"""
+    bw, bh = e(item["box"][2]), e(item["box"][3])
+    sx, sy = bw / LOGO_W, bh / LOGO_H
+    P = lambda p: f'<a:pt x="{int(p[0] * sx)}" y="{int(p[1] * sy)}"/>'
+    out = []
+    for n, (fill, subs) in enumerate(LOGO_SHAPES):
+        paths = ""
+        for start, segs in subs:
+            body = f'<a:moveTo>{P(start)}</a:moveTo>'
+            for seg in segs:
+                body += (f'<a:lnTo>{P(seg[1])}</a:lnTo>' if seg[0] == "L"
+                         else f'<a:cubicBezTo>{P(seg[1])}{P(seg[2])}{P(seg[3])}</a:cubicBezTo>')
+            paths += f'<a:path w="{bw}" h="{bh}">{body}<a:close/></a:path>'
+        if LOGO_MULTICOLOR and fill:
+            op = item.get("opacity")
+            a = f'<a:alpha val="{int(op * 100000)}"/>' if op is not None else ""
+            paint = f'<a:solidFill><a:srgbClr val="{fill}">{a}</a:srgbClr></a:solidFill>'
+        else:
+            paint = clr(item["color"], item.get("opacity"))
+        name = item["name"] if len(LOGO_SHAPES) == 1 else f'{item["name"]}_{n + 1}'
+        out.append(
+            f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{name}" descr="{BRAND_NAME} ロゴ"/><p:cNvSpPr/><p:nvPr userDrawn="1"/></p:nvSpPr>'
             f'<p:spPr>{xfrm(item["box"])}<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/>'
-            f'<a:pathLst>{paths}</a:pathLst></a:custGeom>{clr(item["color"], item.get("opacity"))}<a:ln><a:noFill/></a:ln></p:spPr></p:sp>')
+            f'<a:pathLst>{paths}</a:pathLst></a:custGeom>{paint}<a:ln><a:noFill/></a:ln></p:spPr></p:sp>')
+    return "".join(out)
 
 
 # ---------------------------------------------------------------- key visual: picture cropped to the Figma curve
@@ -120,7 +263,9 @@ def picture(item, rid):
     t = (box[1] - iy) / dh
     b = (iy + dh - (box[1] + box[3])) / dh
     src = f'<a:srcRect l="{int(l * 100000)}" t="{int(t * 100000)}" r="{int(r * 100000)}" b="{int(b * 100000)}"/>'
-    return (f'<p:pic><p:nvPicPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}" descr="メタセコイアを見上げた写真（キービジュアル）"/>'
+    # 代替テキスト（スクリーンリーダーが読む）はレイアウト JSON の alt から。無ければ図の名前
+    alt = bp_esc(item.get("alt") or item["name"])
+    return (f'<p:pic><p:nvPicPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}" descr="{alt}"/>'
             '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr userDrawn="1"/></p:nvPicPr>'
             f'<p:blipFill><a:blip r:embed="{rid}"/>{src}<a:stretch><a:fillRect/></a:stretch></p:blipFill>'
             f'<p:spPr>{xfrm(box)}<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/>'

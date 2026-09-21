@@ -21,8 +21,8 @@ import build_potx_figma as bpf  # noqa: E402  (レイアウトの並び順)
 BODY_LAYOUT = [l["name"] for l in bpf.SPEC["layouts"]].index("06_本文") + 1
 
 ROOT = Path(__file__).resolve().parent.parent
-BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # brand values (tokens, assets, templates)
-OUT = Path(os.environ.get("OFFICE3_OUT", ROOT / "build")).resolve()         # generated files (gitignored)
+BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()   # brand values (tokens, assets, templates)
+OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()         # generated files (gitignored)
 OUT.mkdir(parents=True, exist_ok=True)
 XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
 C_NS = ('xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" '
@@ -656,7 +656,8 @@ if __name__ == "__main__":
         body = (("chartex", chartex_xml(ch, ch["data"], embedded=False)) if ch["kind"] == "waterfall-x"
                 else ("chart", chart_xml(ch, ch["data"], embedded=False)))
         order += [("sheet", ch["data"], sheet_xml(ch)), (body[0], ch["name"], body[1])]
-    (OUT / "charts/report_charts.xlsx").write_bytes(xlsx(order))
-    print("wrote build/charts/report_charts.xlsx")
+    xlsx_path = OUT / "charts/report_charts.xlsx"
+    xlsx_path.write_bytes(xlsx(order))
+    print(f"wrote {xlsx_path}")
     inject_pptx(OUT / build_potx.out_name("_sample.pptx"), OUT / build_potx.out_name("_charts.pptx"))
     inject_docx(OUT / build_potx.out_name("_sample.docx"), OUT / build_potx.out_name("_charts.docx"))

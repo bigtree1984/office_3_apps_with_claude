@@ -16,8 +16,8 @@ import build_potx_figma as bpf  # noqa: E402
 import build_charts as bc  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-BRAND = Path(os.environ.get("OFFICE3_BRAND", ROOT / "bigtree")).resolve()   # brand values (tokens, assets, templates)
-OUT = Path(os.environ.get("OFFICE3_OUT", ROOT / "build")).resolve()         # generated files (gitignored)
+BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()   # brand values (tokens, assets, templates)
+OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()         # generated files (gitignored)
 OUT.mkdir(parents=True, exist_ok=True)
 e = bpf.e
 
@@ -63,9 +63,9 @@ def table(rows, x, y, w, col_w=None, row_h=56, first_col=True, band=True, body_a
 # バーだけ図形を重ねる（期間を自由な位置に置け、継続中は右端を尖らせられる）。
 GANTT_MONTHS = ["7月", "8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月"]
 GANTT_ROWS = [  # (タスク, 担当, 状態, 開始, 終了, 色, 継続中か)
-    ("連載 #1〜#3 執筆", "だいき", "完了", 0, 3, "accent1", False),
-    ("Office テンプレート開発", "だいき", "進行中", 2, 5, "accent1", False),
-    ("連載 #4〜#6 執筆", "だいき", "予定", 4, 7, "accent1", False),
+    ("連載 #1〜#3 執筆", "担当A", "完了", 0, 3, "accent1", False),
+    ("Office テンプレート開発", "担当A", "進行中", 2, 5, "accent1", False),
+    ("連載 #4〜#6 執筆", "担当A", "予定", 4, 7, "accent1", False),
     ("社内展開", "編集チーム", "未着手", 6, 9, "accent6", True),
 ]
 
