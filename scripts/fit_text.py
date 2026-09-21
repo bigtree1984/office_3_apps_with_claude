@@ -46,6 +46,30 @@ def fits(text, style, box_px, roles=None):
     return worst <= box_pt, worst - box_pt, (worst / box_pt if box_pt else 0)
 
 
+def wrap_lines(text, weight, pt, box_pt):
+    """折り返した結果の行を返す。日本語は単語区切りが無いので1文字ずつ積む。"""
+    out = []
+    for para in text.split("\n"):
+        line = ""
+        for ch in para:
+            if line and width_pt(line + ch, weight, pt) > box_pt:
+                out.append(line)
+                line = ch
+            else:
+                line += ch
+        out.append(line)
+    return out
+
+
+def fits_box(text, style, w_px, h_px, roles=None):
+    """折り返しありで、幅×高さの枠に収まるか。(収まるか, 必要な行数, 入る行数) を返す。"""
+    roles = roles or bp._TOKENS["type_pptx"]["roles"]
+    r = roles[style]
+    need = len(wrap_lines(text, r["weight"], r["pt"], w_px / PX_PER_PT))
+    avail = max(1, round(h_px / (r["pt"] * r["line"] / 100 * PX_PER_PT)))
+    return need <= avail, need, avail
+
+
 def warn(text, style, box_px, where="", roles=None):
     """収まらなければ標準エラーに警告（同じ内容は1回だけ）。"""
     if not text:

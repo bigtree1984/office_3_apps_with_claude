@@ -43,6 +43,9 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/build_organisms.py      # 図解（Organism）のスライド
 .venv/bin/python scripts/build_tables.py         # 表のスライド
 
+# 検討用のプレビュー（Figma が無くても、ブラウザで見てフィードバックできる）
+.venv/bin/python scripts/preview.py --open
+
 # 自分のブランドで作る（値・ロゴ・レイアウトの書き出しを置いたフォルダを指定）
 OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
 ```

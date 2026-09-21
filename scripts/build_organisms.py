@@ -67,7 +67,7 @@ def shape(it, ox, oy):
         key = STYLE_KEY[it["style"]]
         paras = "".join(f'<a:p><a:r><a:rPr lang="ja-JP"/><a:t>{bpf.bp_esc(line)}</a:t></a:r></a:p>' for line in it["text"].split("\n"))
         return (f'<p:sp>{nv}<p:spPr>{bpf.xfrm(box)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>'
-                f'<p:txBody><a:bodyPr wrap="none" {bpf.ZERO} anchor="ctr"><a:noAutofit/></a:bodyPr>'
+                f'<p:txBody><a:bodyPr wrap="square" {bpf.ZERO} anchor="ctr"><a:noAutofit/></a:bodyPr>'
                 f'{bpf.lst(key, it["fill"], ALIGN[it.get("align", "LEFT")])}{paras}</p:txBody></p:sp>')
     if it["type"] in ("RECTANGLE", "ELLIPSE"):
         geom = f'<a:prstGeom prst="{"rect" if it["type"] == "RECTANGLE" else "ellipse"}"><a:avLst/></a:prstGeom>'
