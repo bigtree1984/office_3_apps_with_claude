@@ -46,13 +46,22 @@ def sz(role):
     return int(DOCX[role]["pt"] * 2)
 
 
+AUTO_LINE = [False]        # True にすると行間を Word 既定（自動）にする。B1 の比較デモ用
+
+
 def line(role, after=0, before=0):
     """Exact line spacing in twips (see reference/TEXT_LAYOUT_NOTES.md: Word's 'auto' multiple is
-    relative to the font's own leading, like PowerPoint's percent)."""
+    relative to the font's own leading, like PowerPoint's percent).
+
+    AUTO_LINE=True のときは行間を指定しない（Word 既定＝自動）。
+    **行間を固定値にすると行が文字グリッドに吸着しなくなる**ため、グリッドの有無で差が出なくなる。
+    グリッドの影響そのものを見せたいときだけ自動に戻す。"""
     r = DOCX[role]
     tw = int(round(r["pt"] * r["line"] / 100 * 20))
     b = f' w:before="{before}"' if before else ""
     a = f' w:after="{after}"' if after else ' w:after="0"'
+    if AUTO_LINE[0]:
+        return f'<w:spacing{b}{a}/>'
     return f'<w:spacing{b}{a} w:line="{tw}" w:lineRule="exact"/>'
 
 
@@ -328,22 +337,23 @@ def body_template():
 
 
 def body_sample(img_rid, img_cx, img_cy):
-    lorem = ("Web 解析と EC の運用データは、BigQuery から毎週自動で取得している。"
-             "本レポートでは、直近 4 週間のセッション数・CVR・広告費用対効果（ROAS）の推移をまとめ、"
-             "次の打ち手を提案する。数値はすべて税抜・速報値である。")
+    # 表示確認用のダミー。実データに見える文言は使わない（文字数は元のまま＝改ページ位置を動かさない）
+    lorem = ("これはテンプレートの表示を確かめるためのダミー文書である。"
+             "項目名も数値もすべて架空のもので、実在のデータを示すものではない。"
+             "本文の行間、見出しの間隔、表や挿絵の流れ方、段落の続き方を確かめるために、同じ長さの段落を繰り返し置いている。")
     return "".join([
         sdt("資料の区分", "classification", "公開用 ｜ ドラフト", "Caption", placeholder=False),
-        sdt("宛先", "recipient", "だいきの試作室　読者のみなさまへ", "Normal", placeholder=False),
-        sdt("タイトル", "title", "note トラフィックレポート", "Title", placeholder=False),
-        sdt("サブタイトル", "subtitle", "2026年9月の読まれ方と次の一手", "Subtitle", placeholder=False),
-        sdt("日付・作成者", "meta", "2026-09-20 ｜ Bigtree Lab ｜ だいき君", "Caption", placeholder=False),
+        sdt("宛先", "recipient", "サンプル宛先　テンプレート確認用", "Normal", placeholder=False),
+        sdt("タイトル", "title", "サンプル文書（表示確認用）", "Title", placeholder=False),
+        sdt("サブタイトル", "subtitle", "ダミーテキストのみ・実データではない", "Subtitle", placeholder=False),
+        sdt("日付・作成者", "meta", "0000-00-00 ｜ サンプル ｜ 作成者名", "Caption", placeholder=False),
         toc(),
-        p_style("Heading1", "背景"),
+        p_style("Heading1", "この文書について"),
         para(lorem),
         para(run("この段落には文字スタイルを当てている。") + run("強調したい語句", "Emph") + run("、")
-             + run("注意喚起", "Caution") + run("、そして KPI の ") + run("ROAS 412%", "Figure")
-             + run(" のような数値。リンクは ")
-             + '<w:hyperlink r:id="rIdLink" w:history="1">' + run("note「だいきの試作室」", "Hyperlink") + '</w:hyperlink>'
+             + run("注意喚起", "Caution") + run("、そして数値の ") + run("サンプル指標 12.3%", "Figure")
+             + run(" のような例。リンクは ")
+             + '<w:hyperlink r:id="rIdLink" w:history="1">' + run("サンプルのリンク先", "Hyperlink") + '</w:hyperlink>'
              + run(" のように組み込みのスタイルを使う。")),
         p_style("Heading2", "箇条書き"),
         p_style("ListBullet", "箇条書きの第1レベル"),
@@ -354,19 +364,19 @@ def body_sample(img_rid, img_cx, img_cy):
         p_style("ListNumber", "手順その1"),
         p_style("ListNumber", "手順その2"),
         p_style("ListNumber", "手順その3"),
-        p_style("Heading1", "検証結果"),
-        p_style("Heading2", "週次の主要指標"),
+        p_style("Heading1", "表と挿絵"),
+        p_style("Heading2", "サンプルの表"),
         para("見出し番号（1. / 1.1）はすべて自動採番で、手では打っていない。"),
-        table([["週", "セッション", "CVR", "ROAS"],
-               ["W35", "12,480", "2.1%", "388%"],
-               ["W36", "13,102", "2.3%", "401%"],
-               ["W37", "12,955", "2.4%", "412%"],
-               ["W38", "14,230", "2.2%", "395%"]]),
-        p_style("Caption", "表 " + "") .replace("</w:p>", field("SEQ 表 \\* ARABIC", "1") + run("：週次の主要指標（ダミー）") + "</w:p>"),
+        table([["項目", "サンプル指標A", "サンプル指標B", "サンプル指標C"],
+               ["行1", "1,234", "12.3%", "123%"],
+               ["行2", "2,345", "23.4%", "234%"],
+               ["行3", "3,456", "34.5%", "345%"],
+               ["行4", "4,567", "45.6%", "456%"]]),
+        p_style("Caption", "表 " + "") .replace("</w:p>", field("SEQ 表 \\* ARABIC", "1") + run("：サンプルの表（ダミー）") + "</w:p>"),
         p_style("Heading2", "挿絵"),
         para("挿絵は行内配置にしている。文章を加筆しても、画像は段落と一緒に流れる。"),
         image(img_rid, img_cx, img_cy, "Figure 1"),
-        p_style("Caption", "図 ").replace("</w:p>", field("SEQ 図 \\* ARABIC", "1") + run("：note 用に作った挿絵を Word に流用") + "</w:p>"),
+        p_style("Caption", "図 ").replace("</w:p>", field("SEQ 図 \\* ARABIC", "1") + run("：サンプルの挿絵（ダミー）") + "</w:p>"),
         p_style("Heading3", "行間の確認用（英数字混じり）"),
         *[para(lorem) for _ in range(6)],
         p_style("Heading1", "まとめ"),
@@ -448,3 +458,9 @@ if __name__ == "__main__":
     build(OUT / "bigtree_lab.dotx", "template", embed="--no-embed" not in sys.argv)
     build(OUT / "bigtree_lab_sample.docx", "sample", grid_on=False, embed=False)  # samples stay light
     build(OUT / "bigtree_lab_grid_on.docx", "sample", grid_on=True, embed=False)
+    # B1 の比較デモ：行間を Word 既定（自動）に戻した状態で、グリッドの有無を比べる。
+    # 固定行間のままだと行がグリッドに吸着しないため、差が出ない（＝固定行間はグリッド対策にもなっている）
+    AUTO_LINE[0] = True
+    build(OUT / "bigtree_lab_grid_demo_off.docx", "sample", grid_on=False, embed=False)
+    build(OUT / "bigtree_lab_grid_demo_on.docx", "sample", grid_on=True, embed=False)
+    AUTO_LINE[0] = False
