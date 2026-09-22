@@ -19,16 +19,31 @@ PX_PER_PT = 2          # Figma 1440px = 720pt
 WARNED = set()
 
 
+SKIPPED = [False]
+
+
 @functools.lru_cache(maxsize=None)
 def _font(weight):
+    """フォントが無ければ None を返す。**測れないだけで、ビルドは止めない**
+    （フォント未導入でも --no-embed で一通り動かせるようにするため）。"""
     from fontTools.ttLib import TTFont
-    f = TTFont(bp.font_file(weight), lazy=True)
+    path = bp.font_path("Bold" if weight == "Bold" else "Regular")
+    if not path.exists():
+        if not SKIPPED[0]:
+            SKIPPED[0] = True
+            print(f"（{path.name} が無いので、文字のはみ出し検査は飛ばします）", file=sys.stderr)
+        return None
+    f = TTFont(path, lazy=True)
     return f.getBestCmap(), f["hmtx"], f["head"].unitsPerEm
 
 
 def width_pt(text, weight, pt):
-    """文字列の表示幅（pt）。フォントの字送り（advance width）から計算する。"""
-    cmap, hmtx, upm = _font("Bold" if weight == "Bold" else "Regular")
+    """文字列の表示幅（pt）。フォントの字送り（advance width）から計算する。
+    フォントが無いときは 0（＝はみ出さない扱い）。"""
+    got = _font("Bold" if weight == "Bold" else "Regular")
+    if got is None:
+        return 0.0
+    cmap, hmtx, upm = got
     total = 0.0
     for ch in text:
         g = cmap.get(ord(ch))

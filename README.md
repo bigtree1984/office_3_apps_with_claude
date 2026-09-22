@@ -55,7 +55,7 @@ XML を直接書けば全部設定できます。ここにあるのは、その�
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-# 完成見本をそのまま作り直す
+# 完成見本をそのまま作り直す（既定ではフォントを埋め込むので 1ファイル 6.6MB になります）
 .venv/bin/python scripts/build_potx_figma.py     # POTX とサンプル PPTX
 .venv/bin/python scripts/build_dotx.py           # DOTX とサンプル DOCX
 .venv/bin/python scripts/build_charts.py         # 横の Excel ＋ ネイティブグラフ
@@ -68,6 +68,15 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # 自分のブランドで作る（値・ロゴ・レイアウトの書き出しを置いたフォルダを指定）
 cp -r bigtree ~/mybrand      # 雛形だけ欲しいときは templates/tokens.template.json
 OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
+```
+
+- **出力は既定でフォントを埋め込みます（1ファイル 6.6MB）。** 相手の環境にフォントが無くても崩れないためです。
+  軽いファイルが欲しいときは `--no-embed` を付けてください（POTX / DOTX のビルドで 0.2MB になります）。
+  **フォントを導入していない場合も `--no-embed` で一通り動きます**（文字のはみ出し検査だけ飛ばします）。
+
+```bash
+.venv/bin/python scripts/build_potx_figma.py --no-embed
+.venv/bin/python scripts/build_dotx.py --no-embed
 ```
 
 - 出力先は `build/`（Git には入れません）。`OFFICE3_OUT` で変えられます。

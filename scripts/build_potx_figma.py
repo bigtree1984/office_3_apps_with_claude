@@ -163,7 +163,12 @@ def tf_apply(m, p):
 def logo_paths():
     """ロゴ SVG を (幅, 高さ, [(fill|None, サブパス), ...]) にする。
     <g> の transform を積み、viewBox の原点を 0 に寄せた絶対座標で返す。"""
-    svg = (BRAND / bp.BRAND_INFO["logo"]).read_text()
+    path = BRAND / bp.BRAND_INFO["logo"]
+    if not path.exists():
+        # ロゴがまだ無くても、枠だけで一通り作れるようにする（あとで差し替える前提）
+        print(f"（ロゴが無いので、四角い枠で代用します: {path}）", file=sys.stderr)
+        return 100.0, 100.0, [(None, [((0.0, 0.0), [("L", (100.0, 0.0)), ("L", (100.0, 100.0)), ("L", (0.0, 100.0))])])]
+    svg = path.read_text()
     vb = re.search(r'viewBox="([-\d.eE]+)[,\s]+([-\d.eE]+)[,\s]+([\d.eE]+)[,\s]+([\d.eE]+)"', svg)
     if not vb:
         raise ValueError(f'{bp.BRAND_INFO["logo"]} に viewBox がありません')

@@ -45,31 +45,38 @@
     "roles": {
       "cover": {
         "pt": 0,
-        "weight": "Regular|Bold"
+        "weight": "Regular|Bold",
+        "line": 110
       },
       "section": {
         "pt": 0,
-        "weight": "Regular|Bold"
+        "weight": "Regular|Bold",
+        "line": 110
       },
       "title": {
         "pt": 0,
-        "weight": "Regular|Bold"
+        "weight": "Regular|Bold",
+        "line": 120
       },
       "lead": {
         "pt": 0,
-        "weight": "Regular|Bold"
+        "weight": "Regular|Bold",
+        "line": 130
       },
       "body": {
         "pt": 0,
-        "weight": "Regular|Bold"
+        "weight": "Regular|Bold",
+        "line": 140
       },
       "caption": {
         "pt": 0,
-        "weight": "Regular|Bold"
+        "weight": "Regular|Bold",
+        "line": 140
       },
       "min": {
         "pt": 0,
-        "weight": "Regular|Bold"
+        "weight": "Regular|Bold",
+        "line": 120
       }
     }
   },

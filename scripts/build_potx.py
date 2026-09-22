@@ -45,16 +45,22 @@ COPYRIGHT = BRAND_INFO["copyright"]
 W, H = _TOKENS["slide"]["width_emu"], _TOKENS["slide"]["height_emu"]
 
 
+def font_path(style="Regular"):
+    """フォントの置き場所を返すだけ（存在するとは限らない）。"""
+    return FONT_DIR / f'{FONT.replace(" ", "")}-{style}.ttf'
+
+
 def font_file(style="Regular"):
     """フォントの実ファイル。無ければ、何をすればいいかを書いて止まる（生のトレースを出さない）。"""
-    path = FONT_DIR / f'{FONT.replace(" ", "")}-{style}.ttf'
+    path = font_path(style)
     if not path.exists():
         raise SystemExit(
             f"\nフォントが見つかりません: {path}\n"
             f"  {FONT} の「静的フォント」（Regular / Bold）を用意してください。\n"
             "  ・Google Fonts からダウンロード → static フォルダの .ttf を使う（可変フォントは埋め込みに使えません）\n"
             f"  ・置き場所は ~/Library/Fonts、または OFFICE3_FONT_DIR で指定\n"
-            "  ・埋め込みが不要なら --no-embed を付けて実行できます\n")
+            "  ・**フォントを用意せずに一通り動かしたいときは --no-embed** を付けてください\n"
+            "    （テンプレートは作れます。文字のはみ出し検査だけ飛ばします）\n")
     return path
 
 
