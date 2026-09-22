@@ -2,7 +2,6 @@
   "_source": "（ここに自分の Figma ファイル名と fileKey を書く）。値は Figma が正。変えたらこのファイルに書き出し直す。",
   "_how_to_use": "色と文字サイズ、ブランドの文字列はこのファイルが正。brand.logo は普通の SVG で構いません（複数パス・曲線・多色・transform・原点が 0,0 でない viewBox に対応）。暗地にする場合は design/figma_layouts.json の bg と color も反転してください。",
   "_exported": "YYYY-MM-DD",
-  "theme_name": "（テーマ名）",
   "brand": {
     "name": "あなたのブランド名",
     "slug": "my_brand",

@@ -33,7 +33,15 @@ import json as _json
 _TOKENS = _json.loads((BRAND / "design/tokens.json").read_text())
 COLORS = _TOKENS["colors"]
 FONT = _TOKENS["font"]["family"]
-THEME_NAME = _TOKENS["theme_name"]
+# ブランドに関する文字列は brand ブロックが正。theme_name は、テーマ名だけ別にしたいとき用の任意の上書き
+BRAND_INFO = {**{"slug": "template", "url": "https://example.com", "logo": "assets/logo/logo.svg",
+                 "meta": "0000-00-00 ｜ 所属 ｜ 作成者"},
+              **_TOKENS.get("brand", {})}
+BRAND_INFO.setdefault("name", _TOKENS.get("theme_name", "Template"))
+BRAND_INFO.setdefault("copyright", f'© {BRAND_INFO["name"]}')
+THEME_NAME = _TOKENS.get("theme_name") or BRAND_INFO["name"]
+SLUG = BRAND_INFO["slug"]
+COPYRIGHT = BRAND_INFO["copyright"]
 W, H = _TOKENS["slide"]["width_emu"], _TOKENS["slide"]["height_emu"]
 
 
@@ -131,15 +139,6 @@ def guides(uri, items):
                 f'<p15:clr><a:srgbClr val="{"E46962" if lvl == "master" else "FBAE40"}"/></p15:clr></p15:guide>'
                 for i, (o, emu, lvl) in enumerate(items))
     return f'<p:extLst><p:ext uri="{uri}"><p15:sldGuideLst {P15}>{g}</p15:sldGuideLst></p:ext></p:extLst>'
-
-
-# ブランドに関する文字列は tokens.json の brand ブロックから引く（スクリプトに直書きしない）
-BRAND_INFO = {**{"name": THEME_NAME, "slug": "template", "url": "https://example.com",
-                 "copyright": f"© {THEME_NAME}", "logo": "assets/logo/logo.svg",
-                 "meta": "0000-00-00 ｜ 所属 ｜ 作成者"},
-              **_TOKENS.get("brand", {})}
-SLUG = BRAND_INFO["slug"]
-COPYRIGHT = BRAND_INFO["copyright"]
 
 
 def out_name(suffix):

@@ -165,7 +165,7 @@
           ],
           "style": "caption",
           "color": "dk2",
-          "text": "2026-09-20 ｜ Bigtree Lab ｜ だいき君"
+          "text": "{{brand.meta}}"
         },
         {
           "name": "Copyright",
@@ -178,7 +178,7 @@
           ],
           "style": "min",
           "color": "dk2",
-          "text": "© 2026 Bigtree Lab"
+          "text": "{{brand.copyright}}"
         }
       ]
     },
@@ -263,7 +263,7 @@
           ],
           "style": "min",
           "color": "dk2",
-          "text": "© 2026 Bigtree Lab"
+          "text": "{{brand.copyright}}"
         },
         {
           "name": "SlideNumber",
@@ -363,7 +363,7 @@
           ],
           "style": "min",
           "color": "lt1",
-          "text": "© 2026 Bigtree Lab"
+          "text": "{{brand.copyright}}"
         },
         {
           "name": "SlideNumber",
@@ -433,7 +433,7 @@
           ],
           "style": "min",
           "color": "dk2",
-          "text": "© 2026 Bigtree Lab"
+          "text": "{{brand.copyright}}"
         },
         {
           "name": "SlideNumber",
@@ -503,7 +503,7 @@
           ],
           "style": "min",
           "color": "lt1",
-          "text": "© 2026 Bigtree Lab"
+          "text": "{{brand.copyright}}"
         },
         {
           "name": "SlideNumber",
@@ -625,7 +625,7 @@
           ],
           "style": "min",
           "color": "dk2",
-          "text": "© 2026 Bigtree Lab"
+          "text": "{{brand.copyright}}"
         },
         {
           "name": "SlideNumber",
@@ -732,7 +732,7 @@
           ],
           "style": "min",
           "color": "dk2",
-          "text": "© 2026 Bigtree Lab"
+          "text": "{{brand.copyright}}"
         },
         {
           "name": "SlideNumber",
@@ -751,5 +751,6 @@
         }
       ]
     }
-  ]
+  ],
+  "_note": "`{{brand.xxx}}` は tokens.json の brand ブロックから差し込まれます。ここに実物を書くと、同じ値が2か所になって直しても反映されません。"
 }

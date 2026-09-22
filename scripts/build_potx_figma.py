@@ -296,14 +296,19 @@ def ph_attr(item):
 
 # Figma の書き出しにはブランドの文字列が入っている。名前で拾って tokens.json の brand で上書きする
 # （そうしないと、トークンを差し替えても「© 2026 前のブランド名」が残る）
-BRAND_TEXT = {"Copyright": bp.BRAND_INFO["copyright"], "Meta": bp.BRAND_INFO["meta"]}
-
-
 def with_brand(item):
-    """Copyright / Meta は、書き出しの文字ではなく tokens.json の brand を使う。"""
-    if item.get("name") in BRAND_TEXT and item.get("text"):
-        return {**item, "text": BRAND_TEXT[item["name"]]}
-    return item
+    """`{{brand.xxx}}` と書かれた文字を tokens.json の brand の値に置き換える。
+
+    著作権表示や作成者名は、書き出し JSON にも Figma にも実物が書いてあると**同じ値が2か所**になり、
+    JSON を直しても出力が変わらない（＝直したつもりで直っていない）状態になる。
+    そこで JSON 側は差し込み口だけを残し、値は brand から取る。
+    """
+    text = item.get("text")
+    if not text or "{{" not in text:
+        return item
+    for key, val in bp.BRAND_INFO.items():
+        text = text.replace("{{brand.%s}}" % key, str(val))
+    return {**item, "text": text}
 
 
 def placeholder(item, on_slide=False, content=None, master=False):
