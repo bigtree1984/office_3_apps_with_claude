@@ -10,6 +10,8 @@ XML を直接書けば全部設定できます。ここにあるのは、その�
 - 使っているライブラリ：`fonttools`（フォント埋め込み）、`pillow` だけ。`ezdxf` / `shapely` は `dxf_to_svg.py`（CAD から SVG を作る**任意**の道具）用で、ロゴが SVG なら要りません。
   **python-pptx / python-docx は使っていません**（テーマ・マスター・ガイド・埋め込みフォントを触れないため）。
 - デザインの正（SSOT）は Figma。Figma から値とレイアウトを書き出して、スクリプトが POTX / DOTX を組み立てます。
+  **ただし Figma は無くても構いません。** 書き出し済みの `bigtree/design/*.json` があるので、
+  **Figma を開かずに最後まで動きます**（見た目の検討は `scripts/preview.py` で代用できます）。
 
 ## どこまで守るか（ここを先に読んでください）
 

@@ -160,10 +160,11 @@ def tf_apply(m, p):
     return (a * p[0] + c * p[1] + e, b * p[0] + d * p[1] + f)
 
 
-def logo_paths():
+def logo_paths(rel=None):
     """ロゴ SVG を (幅, 高さ, [(fill|None, サブパス), ...]) にする。
-    <g> の transform を積み、viewBox の原点を 0 に寄せた絶対座標で返す。"""
-    path = BRAND / bp.BRAND_INFO["logo"]
+    <g> の transform を積み、viewBox の原点を 0 に寄せた絶対座標で返す。
+    rel を渡すと、ブランドの既定ロゴではなくその SVG（アイコン・フッターなど）を読む。"""
+    path = BRAND / (rel or bp.BRAND_INFO["logo"])
     if not path.exists():
         # ロゴがまだ無くても、枠だけで一通り作れるようにする（あとで差し替える前提）
         print(f"（ロゴが無いので、四角い枠で代用します: {path}）", file=sys.stderr)
@@ -202,12 +203,21 @@ def logo_paths():
             subs.append((T(start), [(seg[0], *[T(p) for p in seg[1:]]) for seg in segs]))
         out.append((fill, subs))
     if not out:
-        raise ValueError(f'{bp.BRAND_INFO["logo"]} に <path> がありません')
+        raise ValueError(f'{rel or bp.BRAND_INFO["logo"]} に <path> がありません')
     return vw, vh, out
 
 
 LOGO_W, LOGO_H, LOGO_SHAPES = logo_paths()
 LOGO_MULTICOLOR = len({f for f, _ in LOGO_SHAPES if f}) > 1
+_SVG_CACHE = {}
+
+
+def svg_shapes(rel):
+    """レイアウトの item が svg を指していたら、その SVG を読む（同じものは使い回す）。"""
+    if rel not in _SVG_CACHE:
+        w, h, shapes = logo_paths(rel)
+        _SVG_CACHE[rel] = (w, h, shapes, len({f for f, _ in shapes if f}) > 1)
+    return _SVG_CACHE[rel]
 
 
 def logo(item):
@@ -215,24 +225,34 @@ def logo(item):
     パス座標は図形の枠の EMU に直して書く（<a:path w/h> の換算に頼らない。頼ると
     その換算を見ないレンダラで小さく描かれる）。"""
     bw, bh = e(item["box"][2]), e(item["box"][3])
-    sx, sy = bw / LOGO_W, bh / LOGO_H
-    P = lambda p: f'<a:pt x="{int(p[0] * sx)}" y="{int(p[1] * sy)}"/>'
+    w0, h0, shapes, multi = svg_shapes(item["svg"]) if item.get("svg") else (LOGO_W, LOGO_H, LOGO_SHAPES, LOGO_MULTICOLOR)
+    # 枠の縦横比が SVG と違っても、SVG の比率は崩さない（プレビューの object-fit:contain と同じ）。
+    # 崩す指定は事故なので警告する。ここを伸ばすと、プレビューと実物が違う見た目になる。
+    sx = sy = min(bw / w0, bh / h0)
+    if abs((bw / bh) - (w0 / h0)) > 0.01 * (w0 / h0):
+        print(f'（{item["name"]}: 枠 {item["box"][2]:.0f}x{item["box"][3]:.0f} と SVG {w0:.0f}x{h0:.0f} の比率が違います。'
+              f'中央に収めました。枠を {w0 / h0:.3f} の比率にしてください）', file=sys.stderr)
+    ox, oy = (bw - w0 * sx) / 2, (bh - h0 * sy) / 2   # 収めたぶんを中央に寄せる
+    P = lambda p: f'<a:pt x="{int(p[0] * sx + ox)}" y="{int(p[1] * sy + oy)}"/>'
     out = []
-    for n, (fill, subs) in enumerate(LOGO_SHAPES):
-        paths = ""
+    for n, (fill, subs) in enumerate(shapes):
+        # SVG の <path> ひとつ＝ <a:path> ひとつ。サブパスは moveTo で continue する。
+        # サブパスごとに <a:path> を分けると、文字の「A」の中の穴まで塗られる（穴が穴にならない）。
+        body = ""
         for start, segs in subs:
-            body = f'<a:moveTo>{P(start)}</a:moveTo>'
+            body += f'<a:moveTo>{P(start)}</a:moveTo>'
             for seg in segs:
                 body += (f'<a:lnTo>{P(seg[1])}</a:lnTo>' if seg[0] == "L"
                          else f'<a:cubicBezTo>{P(seg[1])}{P(seg[2])}{P(seg[3])}</a:cubicBezTo>')
-            paths += f'<a:path w="{bw}" h="{bh}">{body}<a:close/></a:path>'
-        if LOGO_MULTICOLOR and fill:
+            body += '<a:close/>'
+        paths = f'<a:path w="{bw}" h="{bh}">{body}</a:path>'
+        if multi and fill:
             op = item.get("opacity")
             a = f'<a:alpha val="{int(op * 100000)}"/>' if op is not None else ""
             paint = f'<a:solidFill><a:srgbClr val="{fill}">{a}</a:srgbClr></a:solidFill>'
         else:
-            paint = clr(item["color"], item.get("opacity"))
-        name = item["name"] if len(LOGO_SHAPES) == 1 else f'{item["name"]}_{n + 1}'
+            paint = clr(item.get("color", "dk1"), item.get("opacity"))   # 多色 SVG では使われない
+        name = item["name"] if len(shapes) == 1 else f'{item["name"]}_{n + 1}'
         out.append(
             f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{name}" descr="{BRAND_NAME} ロゴ"/><p:cNvSpPr/><p:nvPr userDrawn="1"/></p:nvSpPr>'
             f'<p:spPr>{xfrm(item["box"])}<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/>'

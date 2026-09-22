@@ -141,7 +141,7 @@ def layout_html(lay, assets):
                        "overflow:hidden;")
         elif kind == "logo":
             x, y, w, h = it["box"]
-            src = assets.get("logo", "")
+            src = assets.get(it.get("svg", "logo"), "")
             body += el(name, x, y, w, h, f'<img src="{src}" style="width:100%;height:100%;object-fit:contain">')
         elif kind == "rect":
             x, y, w, h = it["box"]
@@ -215,6 +215,8 @@ def main():
         for it in lay["items"]:
             if it.get("kind") == "picture":
                 assets[it["image"]] = data_uri(BRAND / it["image"])
+            elif it.get("svg"):
+                assets[it["svg"]] = data_uri(BRAND / it["svg"])
 
     cards = ""
     for lay in spec["layouts"]:
