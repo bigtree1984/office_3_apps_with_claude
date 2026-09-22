@@ -63,9 +63,12 @@ FIXED = []          # 自動で色を直した箇所（最後にまとめて報�
 
 
 def under_fill(items, upto, box):
-    """その文字の下に敷かれている色を、重なり順に混ぜながら求める（図解の地は白）。"""
+    """その文字の下に敷かれている色を、重なり順に混ぜながら求める。
+
+    **一番下はスライドの地色**（白決め打ちにすると、暗地に変えた人の図解で文字が消える）。
+    """
     cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
-    under = "lt1"
+    under = bpf.BODY_BG
     for other in items[:upto]:
         if other["type"] == "TEXT":
             continue

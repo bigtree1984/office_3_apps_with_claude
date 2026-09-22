@@ -53,6 +53,27 @@ def esc(s):
 CHART_PT = bpf.STYLES["caption"]["pt"]
 SZ = int(CHART_PT * 100)
 
+# グラフの文字色は「どこに貼るか」で決まる。グラフ枠は塗りなしなので、下の地色がそのまま透ける。
+#   スライド … 本文レイアウトの地色しだい（暗地なら白）
+#   Word / Excel … 白い紙の上なので常に濃い文字
+# 一律に「暗地なら白」にすると、今度は Word と Excel のグラフが白地に白で消える（実際に踏まれた）
+ON_SLIDE = ["pptx"]
+
+
+# テーマ配色の名前は、トークン名と対応している（dk1→tx1、lt1→bg1、dk2→tx2、lt2→bg2）
+_SCHEME = {"dk1": "tx1", "lt1": "bg1", "dk2": "tx2", "lt2": "bg2"}
+
+
+def ink(strong=True):
+    """グラフの文字色（テーマの配色名）。strong=False は軸ラベルなどの弱い文字。
+
+    スライドは**本文レイアウトの地色の上で読める色**、Word と Excel は白い紙の上なので
+    常に本文色。一律に「暗地なら白」にすると、今度は Word と Excel で白地に白になる。
+    """
+    if ON_SLIDE[0] == "pptx":
+        return _SCHEME[bpf.TEXT_ON_SLIDE if strong else bpf.MUTED_ON_SLIDE]
+    return "tx1" if strong else "tx2"
+
 
 # ---------------------------------------------------------------- chart XML (shared by xlsx / pptx / docx)
 TXT = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{sz}"><a:solidFill><a:schemeClr val="{clr}"/></a:solidFill>'
@@ -67,7 +88,7 @@ def label_on(fill):
 
 def dlbls(kind, n, highlighted, fmt, clr="tx1"):
     """値ラベル（CHART_RULES.md §3）。棒は6カテゴリ以下なら全点、折れ線は両端だけ。"""
-    txt = TXT.format(sz=SZ, clr="tx1")
+    txt = TXT.format(sz=SZ, clr=ink())
     if kind in ("bar", "barh") and n <= 6:
         return (f'<c:dLbls>{txt}<c:dLblPos val="outEnd"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
@@ -223,12 +244,13 @@ def chart_xml(ch, sheet, embedded):
     def cat_ax(axid, crossax, delete=0):
         # 横棒は既定だと最初の項目が一番下にくるので、軸を逆向きにして上から読める順にする
         orient = "maxMin" if kind == "barh" else "minMax"
+        axis_line = ink(False)          # 軸線も地色に合わせる（暗地だと濃い線が見えない）
         return (f'<c:catAx><c:axId val="%s"/><c:scaling><c:orientation val="{orient}"/></c:scaling>'
                 '<c:delete val="%s"/><c:axPos val="%s"/><c:numFmt formatCode="General" sourceLinked="1"/>'
                 '<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
-                '<c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="tx2"/></a:solidFill></a:ln></c:spPr>%s'
+                f'<c:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="{axis_line}"/></a:solidFill></a:ln></c:spPr>%s'
                 '<c:crossAx val="%s"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'
-                % (axid, delete, "l" if horiz else "b", TXT.format(sz=SZ, clr="tx2"), crossax))
+                % (axid, delete, "l" if horiz else "b", TXT.format(sz=SZ, clr=ink(False)), crossax))
     def val_ax(axid, crossax, fmt, delete=0, crosses="autoZero", show_grid=True, zero=False, unit=None, maxv=None, minv=None):
         # 棒は必ず 0 起点（CHART_RULES.md §1）。100%積み上げは 0〜100% に固定する
         # （自動任せだと「91%〜100%」のように途中から始まり、棒の長さが割合と合わなくなる）
@@ -240,7 +262,7 @@ def chart_xml(ch, sheet, embedded):
                 '<c:crossBetween val="between"/>%s</c:valAx>'
                 # 横棒のときの目盛線は「縦線」になる。縦の目盛線は引かない（CHART_RULES §6）
                 % (axid, scaling, delete, "b" if horiz else "l", grid if (show_grid and not horiz) else "", fmt,
-                   noline, TXT.format(sz=SZ, clr="tx2"), crossax, crosses,
+                   noline, TXT.format(sz=SZ, clr=ink(False)), crossax, crosses,
                    f'<c:majorUnit val="{unit}"/>' if unit else ""))
     if kind == "combo":
         axes = (cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], zero=True)
@@ -261,12 +283,12 @@ def chart_xml(ch, sheet, embedded):
                                            zero=(kind in ("bar", "barh", "bar100", "waterfall")), maxv=(1 if kind == "bar100" else None))
     # 直接ラベルを置く折れ線・複合では凡例を出さない（CHART_RULES.md §5）
     legend = ("" if kind in ("line", "combo", "waterfall")
-              else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=SZ, clr="tx1") + '</c:legend>')
+              else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=SZ, clr=ink()) + '</c:legend>')
     ext = '<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>' if embedded else ""
     return (XML + f'<c:chartSpace {C_NS}><c:date1904 val="0"/><c:lang val="ja-JP"/><c:roundedCorners val="0"/>'
             f'<c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:layout/>{plot}{axes}</c:plotArea>{legend}'
             '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>'
-            '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' + TXT.format(sz=SZ, clr="tx1") + f'{ext}</c:chartSpace>')
+            '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' + TXT.format(sz=SZ, clr=ink()) + f'{ext}</c:chartSpace>')
 
 
 # ---------------------------------------------------------------- chartEx（Excel 2016 以降のウォーターフォール）
@@ -526,6 +548,7 @@ def embedded_parts(files, prefix, ch, i):
 
 # ---------------------------------------------------------------- PPTX
 def inject_pptx(src, dst):
+    ON_SLIDE[0] = "pptx"          # スライドの地色で文字色が決まる
     f = read_zip(src)
     ct = f["[Content_Types].xml"].decode()
     pres = f["ppt/presentation.xml"].decode()
@@ -568,6 +591,7 @@ def inject_pptx(src, dst):
 
 # ---------------------------------------------------------------- DOCX
 def inject_docx(src, dst):
+    ON_SLIDE[0] = "docx"          # 白い紙の上なので、常に濃い文字
     f = read_zip(src)
     ct = f["[Content_Types].xml"].decode()
     doc = f["word/document.xml"].decode()
@@ -613,6 +637,7 @@ if __name__ == "__main__":
     (OUT / "charts").mkdir(parents=True, exist_ok=True)
     order = []  # data1, graph1, data2, graph2 ...
     for ch in CHARTS:
+        ON_SLIDE[0] = "xlsx"      # Excel のシート上も白地
         body = (("chartex", chartex_xml(ch, ch["data"], embedded=False)) if ch["kind"] == "waterfall-x"
                 else ("chart", chart_xml(ch, ch["data"], embedded=False)))
         order += [("sheet", ch["data"], sheet_xml(ch)), (body[0], ch["name"], body[1])]

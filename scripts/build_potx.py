@@ -99,7 +99,7 @@ def font_file(style="Regular"):
 
 def shadow(dist, blur, alpha):
     return (f'<a:effectStyle><a:effectLst><a:outerShdw blurRad="{blur}" dist="{dist}" dir="2700000" '
-            f'algn="tl" rotWithShape="0"><a:srgbClr val="1F4437"><a:alpha val="{alpha}"/></a:srgbClr>'
+            f'algn="tl" rotWithShape="0"><a:srgbClr val="{COLORS["dk1"]}"><a:alpha val="{alpha}"/></a:srgbClr>'
             f'</a:outerShdw></a:effectLst></a:effectStyle>')
 
 

@@ -27,6 +27,16 @@ SCHEME = {"dk1": "tx1", "lt1": "bg1", "dk2": "tx2", "lt2": "bg2"}
 STYLES = bp._TOKENS["type_pptx"]["roles"]   # 文字スタイルの正は tokens.json
 BRAND_NAME = bp.BRAND_INFO["name"]         # ブランド名の正は tokens.json の brand
 
+# 本文レイアウトの地色が、この資料が明地か暗地かの判断材料。
+# 暗地にしたのにグラフ・表・図解が明地のままだと、文字が地色と同化して消える（実際に踏まれた）
+BODY_BG = next((l["bg"] for l in SPEC["layouts"] if l["name"].startswith("06_")), "lt1")
+# その地色の上で読める文字の**トークン名**を聞く。トークンの意味（dk1＝文字色）は
+# 配色を反転した人でも保つので、名前で受け取るのが安全。
+# 明るさで直に判定しようとすると、トークン名と実際の色が入れ替わったブランドで逆を引く（実際に踏んだ）
+TEXT_ON_SLIDE = bp.text_on(BODY_BG)               # "dk1" か "lt1"
+MUTED_ON_SLIDE = "dk2" if TEXT_ON_SLIDE == "dk1" else "lt2"
+ON_DARK = bp.contrast("lt1", BODY_BG) > bp.contrast("dk1", BODY_BG)   # 地の上で lt1 のほうが読める＝暗地
+
 
 def e(px):
     return int(round(px * EMU))
@@ -398,6 +408,12 @@ def table_styles():
     # borders not mentioned fall back to PowerPoint's default thin frame, so "no line" must be explicit.
     # order matters: left, right, top, bottom, insideH, insideV
     nl = "<a:ln><a:noFill/></a:ln>"
+    # 縞は「文字色を 8% 乗せる」。明地なら薄いグレー、暗地なら少し明るい帯になり、どちらでも成立する
+    band_fill = (f'<a:fill><a:solidFill><a:schemeClr val="{SCHEME.get(TEXT_ON_SLIDE, TEXT_ON_SLIDE)}">'
+                 '<a:alpha val="8000"/></a:schemeClr></a:solidFill></a:fill>')
+    # 縞は「文字色を 8% 乗せる」。明地なら薄いグレー、暗地なら少し明るい帯になり、どちらでも成立する
+    band_fill = (f'<a:fill><a:solidFill><a:schemeClr val="{SCHEME.get(TEXT_ON_SLIDE, TEXT_ON_SLIDE)}">'
+                 '<a:alpha val="8000"/></a:schemeClr></a:solidFill></a:fill>')
     inside = ("<a:left>" + nl + "</a:left><a:right>" + nl + "</a:right><a:top>" + nl + "</a:top><a:bottom>" + nl + "</a:bottom>"
               + "<a:insideH>" + ln(1, "accent5") + "</a:insideH><a:insideV>" + nl + "</a:insideV>")
     header_bdr = ("<a:left>" + nl + "</a:left><a:right>" + nl + "</a:right><a:top>" + nl + "</a:top>"
@@ -405,12 +421,12 @@ def table_styles():
     return (XML + '<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
             f'def="{TABLE_STYLE_ID}"><a:tblStyle styleId="{TABLE_STYLE_ID}" styleName="{BRAND_NAME} 表">'
             # whole table: horizontal rules only, no outer frame (0304 rule)
-            f'<a:wholeTbl>{cell(inside, none)}{txt("dk1", False)}</a:wholeTbl>'
-            f'<a:band2H>{cell("", fill_of("lt2"))}</a:band2H>'
+            f'<a:wholeTbl>{cell(inside, none)}{txt(TEXT_ON_SLIDE, False)}</a:wholeTbl>'
+            f'<a:band2H>{cell("", band_fill)}</a:band2H>'
             # header row: accent1 band, white bold text, thicker rule underneath
-            f'<a:firstRow>{txt("lt1", True)}{cell(header_bdr, fill_of("accent1"))}</a:firstRow>'
+            f'<a:firstRow>{txt(bp.text_on("accent1"), True)}{cell(header_bdr, fill_of("accent1"))}</a:firstRow>'
             # first column: bold row labels
-            f'<a:firstCol>{txt("dk1", True)}{cell("", none)}</a:firstCol>'
+            f'<a:firstCol>{txt(TEXT_ON_SLIDE, True)}{cell("", none)}</a:firstCol>'
             '</a:tblStyle></a:tblStyleLst>')
 
 
