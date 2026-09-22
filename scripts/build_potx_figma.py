@@ -234,7 +234,8 @@ def logo(item):
     sx = sy = min(bw / w0, bh / h0)
     if abs((bw / bh) - (w0 / h0)) > 0.01 * (w0 / h0):
         print(f'（{item["name"]}: 枠 {item["box"][2]:.0f}x{item["box"][3]:.0f} と SVG {w0:.0f}x{h0:.0f} の比率が違います。'
-              f'中央に収めました。枠を {w0 / h0:.3f} の比率にしてください）', file=sys.stderr)
+              f'中央に収めました。枠を {w0 / h0:.3f} の比率にしてください'
+              f'／まとめて直すなら scripts/fit_logo_boxes.py）', file=sys.stderr)
     ox, oy = (bw - w0 * sx) / 2, (bh - h0 * sy) / 2   # 収めたぶんを中央に寄せる
     P = lambda p: f'<a:pt x="{int(p[0] * sx + ox)}" y="{int(p[1] * sy + oy)}"/>'
     out = []
@@ -466,16 +467,10 @@ def layout(spec):
 
 
 # ---------------------------------------------------------------- sample slides (one per layout)
-SAMPLE_CONTENT = {
-    "06_本文": [(0, "連載 #3「AIエージェント時代のnote執筆」が検索経由で安定して読まれている"),
-               (1, "検索流入は前月比 142%。「note 自動投稿」「Claude Code note」が上位"),
-               (0, "スキ率（スキ ÷ PV）は 4.8% → 6.1% に改善"),
-               (0, "次の一手：連載 #4 は Office テンプレート編。9月中に公開する")],
-    "07_本文_リードなし": [(0, "#1 はじめに：AI と一緒に note を書く ─ PV 2,140 ／ スキ 96"),
-                      (0, "#2 挿絵は HTML で作る ─ PV 1,820 ／ スキ 121"),
-                      (0, "#3 眠っていた才能 ─ PV 3,560 ／ スキ 214"),
-                      (1, "検索流入が全体の 58%")],
-}
+# サンプルの文章はブランド側（design/samples.json）に置く。
+# **スクリプトに書くと、ブランドを差し替えた人の資料に作者の文章が残る**（実際に踏まれた）
+_SAMPLES = json.loads((BRAND / "design/samples.json").read_text()) if (BRAND / "design/samples.json").exists() else {}
+SAMPLE_CONTENT = {k: [tuple(x) for x in v] for k, v in _SAMPLES.get("slides", {}).items()}
 
 
 def sample_slide(spec):

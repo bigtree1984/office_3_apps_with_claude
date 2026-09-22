@@ -83,7 +83,7 @@ AI エージェントは見本があると、それに寄せてしまいます�
 |---|---|
 | `bigtree/templates/` | `bigtree_lab.potx`（206KB）/ `bigtree_lab.dotx`（8KB）。**フォント埋め込みなし** |
 | `bigtree/samples/` | レイアウト見本、Organism、表、ネイティブグラフ入りの PPTX / DOCX |
-| `bigtree/design/` | トークン（色・文字サイズ）、Figma からの書き出し、Word スタイル表、SSOT の地図 |
+| `bigtree/design/` | トークン（色・文字サイズ）、Figma からの書き出し、**サンプル資料の中身**（`samples.json`）、Word スタイル表、SSOT の地図 |
 | `bigtree/assets/` | ロゴ（Fusion のスケッチ → SVG）、キービジュアル |
 
 ## 使い方
@@ -103,6 +103,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # 自分のブランドで作る（値・ロゴ・レイアウトの書き出しを置いたフォルダを指定）
 cp -r bigtree ~/mybrand      # 雛形だけ欲しいときは templates/tokens.template.json
+                             # ※ 図解やサンプル資料の文章も付いてくるので、自分のものに置き換えてください
 OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
 ```
 

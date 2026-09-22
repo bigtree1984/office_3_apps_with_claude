@@ -118,6 +118,8 @@ Noto Sans JP の**静的フォント**（Regular / Bold）を `~/Library/Fonts` 
 
 ```bash
 cp -r bigtree ~/mybrand                      # 一式をコピー
+# コピーには作者の文章（図解の中の名前、サンプル資料の文）も付いてきます。
+# design/samples.json と design/figma_organisms.json の文言は、自分のものに置き換えてください
 # ~/mybrand/design/tokens.json の colors と type_pptx / type_docx を書き換える
 OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
 ```
@@ -155,6 +157,14 @@ Illustrator の書き出しは後者なので、**片方しか見ていないと
 
 **枠の縦横比は SVG に合わせてください。** 違う比率を書くと、比率を保ったまま中央に収めたうえで警告が出ます
 （**理由：黙って引き伸ばすと、プレビューと実物で見た目が変わるため**。プレビューは比率を保ちます）。
+
+既定のレイアウトは**作者のロゴ（縦長 0.759）の比率**で作ってあります。正方形などに差し替えると
+全レイアウトで警告が出るので、**枠をまとめて合わせるスクリプト**を用意しました。
+
+```bash
+OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/fit_logo_boxes.py          # 変更内容を見る
+OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/fit_logo_boxes.py --write  # 書き換える
+```
 ゼロから始めるなら `templates/tokens.template.json` を写して埋めてください
 （**ロゴがまだ無くても動きます**。四角い枠で代用して進み、あとで差し替えられます）。
 

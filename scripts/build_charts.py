@@ -32,41 +32,11 @@ REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 CT = "application/vnd.openxmlformats-officedocument"
 
 # ---------------------------------------------------------------- data (dummy weekly report)
-CHARTS = [  # fmt2 は複合グラフの第2軸の書式
-
-    dict(name="graph1", data="data1", kind="bar", title="週次セッション（流入経路別）", fmt="#,##0",
-         cats=["W35", "W36", "W37", "W38"],
-         series=[("広告経由", [5200, 5600, 5400, 6100]), ("自然流入", [7280, 7502, 7555, 8130])],
-         highlight=None),                      # automatic colors: accent1, accent2 ...
-    dict(name="graph2", data="data2", kind="line", title="ROAS（チャネル別）", fmt="0%",
-         cats=["W35", "W36", "W37", "W38"],
-         series=[("Google", [3.88, 4.01, 4.12, 3.95]), ("Meta", [2.90, 3.10, 2.70, 3.30]), ("楽天RPP", [4.50, 4.20, 4.80, 5.10])],
-         highlight="楽天RPP"),                  # one series in accent6 (emphasis), the rest muted
-    dict(name="graph3", data="data3", kind="bar", title="週次セッション（W38 の広告経由だけ強調）", fmt="#,##0",
-         cats=["W35", "W36", "W37", "W38"],
-         series=[("広告経由", [5200, 5600, 5400, 6100]), ("自然流入", [7280, 7502, 7555, 8130])],
-         highlight=None, pale=True, point=("広告経由", "W38")),  # everything pale, one data point solid + outlined
-    dict(name="graph4", data="data4", kind="bar100", title="流入元の構成比（2026/09）", fmt="0%",
-         cats=["2026/09"],
-         series=[("検索", [0.58]), ("SNS", [0.21]), ("note 内", [0.13]), ("その他", [0.08])],
-         highlight=None),   # 100% 積み上げ横棒。構成比は図形ではなくグラフで作る（データだから）
-    dict(name="graph5", data="data5", kind="combo", title="セッションと CVR", fmt="#,##0", fmt2="0.0%",
-         cats=["W35", "W36", "W37", "W38"],
-         series=[("セッション（件）", [12480, 13102, 12955, 14230]), ("CVR（%）", [0.021, 0.023, 0.024, 0.022])],
-         highlight="CVR（%）", unit2=0.005),   # 棒＝量（グレー）、折れ線＝率（強調色）。2軸
-    dict(name="graph7", data="data7", kind="barh", title="流入経路の前年との差", fmt="#,##0",
-         cats=["検索", "SNS", "内部リンク", "その他"],
-         series=[("前年", [2140, 1280, 640, 320]), ("今年", [3480, 1020, 980, 410])],
-         highlight=None),   # 2時点の対比は横棒の集合棒。図形ではなくグラフで作る（データだから）
-    dict(name="graph8", data="data8", kind="waterfall-x", title="セッションの増減内訳（Excel 純正のウォーターフォール）", fmt="#,##0",
-         steps=[("8月", 12480, "total"), ("検索", 1340, ""), ("SNS", -620, ""),
-                ("内部リンク", 340, ""), ("その他", 690, ""), ("9月", 14230, "total")],
-         group=True, series_name="増減", highlight=None),   # chartEx 形式。連結線が機能として入っている
-    dict(name="graph6", data="data6", kind="waterfall", title="セッションの増減内訳（8月→9月）", fmt="#,##0",
-         steps=[("8月", 12480, "total"), ("検索", 1340, ""), ("SNS", -620, ""),
-                ("内部リンク", 340, ""), ("その他", 690, ""), ("9月", 14230, "total")],
-         group=True, highlight=None),   # 積み上げ棒＋透明な土台。増減の理由を1枚で見せる
-]
+# グラフのデータもブランド側（design/samples.json）に置く。差し替えた人の資料に
+# 作者の数字が残らないようにするため。無ければ空（グラフ無しで通る）
+import json as _json
+_SPATH = BRAND / "design/samples.json"
+CHARTS = _json.loads(_SPATH.read_text())["charts"] if _SPATH.exists() else []
 
 PALE = '<a:lumMod val="40000"/><a:lumOff val="60000"/>'  # theme tint, stays linked to the palette
 

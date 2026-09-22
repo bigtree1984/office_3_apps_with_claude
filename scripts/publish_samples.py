@@ -21,6 +21,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_potx as bp  # noqa: E402  (ブランドの slug)
 
 ROOT = Path(__file__).resolve().parent.parent
+# 出力先は**自分のブランドのフォルダ**。ここを固定にすると、別ブランドで実行した人が
+# リポジトリ同梱の見本を上書きしてしまう（実際に踏まれた）
+BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()
 PY = sys.executable
 
 # (スクリプト, 追加の引数) —— すべてフォント埋め込みなしで動かす
@@ -36,8 +39,12 @@ SAMPLES = [bp.out_name(x) for x in ("_sample.pptx", "_organisms.pptx", "_tables.
                                     "_charts.pptx", "_sample.docx", "_charts.docx")]
 SAMPLE_DIRS = ["charts"]          # 横に置く Excel（data1 / graph1 … が入ったブック）
 
-# 公開物に入ってはいけない語（クライアント名・社外秘の表記）
+# 公開物に入ってはいけない語（クライアント名・社外秘の表記）。見つかったら止める
 FORBIDDEN = ["ZENITHA", "babbleroo", "BabbleRoo", "Rainforest", "森川", "社外秘"]
+
+# 作者（Bigtree Lab）の固有名。**別ブランドで使うなら差し替えるべきもの**。
+# 止めはしないが、残っていたら知らせる（bigtree/ をコピーして始めると付いてくるため）
+AUTHOR_WORDS = ["だいき", "Bigtree Lab", "bigtree_lab", "試作室"]
 
 
 def check(path):
@@ -55,8 +62,9 @@ def scan_sources():
     """スクリプトと md も検査する（成果物だけ見ていると、コードに残った社名を見逃す）。"""
     bad = []
     me = Path(__file__).resolve()
-    for f in sorted(list(ROOT.glob("scripts/*.py")) + list(ROOT.glob("*.md")) + list(ROOT.glob("notes/*.md"))
-                    + list(ROOT.glob("bigtree/design/*.md"))):
+    files = (list(ROOT.glob("scripts/*.py")) + list(ROOT.glob("*.md")) + list(ROOT.glob("notes/*.md"))
+             + list(BRAND.glob("design/*.md")))          # 利用者のブランド配下の md も見る
+    for f in sorted(set(files)):
         if f.resolve() == me:      # この検査スクリプト自身（禁止語の一覧を持っている）は除く
             continue
         text = f.read_text(encoding="utf-8", errors="ignore")
@@ -83,12 +91,23 @@ def main():
             raise SystemExit(f"{script} が失敗しました")
 
     ng = False
+    if BRAND.name != "bigtree":       # 自分のブランドで実行しているとき
+        left = []
+        for f in sorted(BRAND.rglob("*.json")):
+            text = f.read_text(encoding="utf-8", errors="ignore")
+            found = {w for w in AUTHOR_WORDS if w in text}
+            if found:
+                left.append(f"{f.relative_to(BRAND)}（{'／'.join(sorted(found))}）")
+        if left:
+            print("  注意：作者の固有名が残っています。自分のものに置き換えてください")
+            for line in left:
+                print(f"    {line}")
     src_bad = scan_sources()
     for line in src_bad:
         print(f"  NG（ソースに公開できない語）{line}")
     ng = bool(src_bad)
     for group, names in (("templates", TEMPLATES), ("samples", SAMPLES)):
-        dst_dir = ROOT / "bigtree" / group
+        dst_dir = BRAND / group
         dst_dir.mkdir(parents=True, exist_ok=True)
         for name in names:
             src = tmp / name
@@ -103,12 +122,12 @@ def main():
             print(f"  {group}/{name:<32} {src.stat().st_size / 1e6:5.2f} MB  {mark}")
     for d in SAMPLE_DIRS:
         if (tmp / d).exists():
-            shutil.copytree(tmp / d, ROOT / "bigtree/samples" / d, dirs_exist_ok=True)
+            shutil.copytree(tmp / d, BRAND / "samples" / d, dirs_exist_ok=True)
             print(f"  samples/{d}/ をコピー")
     shutil.rmtree(tmp)
     if ng:
         raise SystemExit("公開できない内容が見つかりました。コピーしていません。")
-    print("公開用ファイルを更新しました（フォントは埋め込んでいません）")
+    print(f"公開用ファイルを更新しました: {BRAND}（フォントは埋め込んでいません）")
 
 
 if __name__ == "__main__":
