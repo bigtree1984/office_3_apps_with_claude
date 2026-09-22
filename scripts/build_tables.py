@@ -6,13 +6,15 @@ Input : build/<slug>_organisms.pptx    Output: build/<slug>_tables.pptx
 Usage : .venv/bin/python scripts/build_tables.py
 """
 import re
+import json
 import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_potx as bp  # noqa: E402
-import build_potx_figma as bpf  # noqa: E402
+import build_potx_figma as bpf
+import fit_text as ft  # noqa: E402  (はみ出し検査。§8【変えない】でセット運用と決めている)  # noqa: E402
 import build_charts as bc  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,6 +44,11 @@ def table(rows, x, y, w, col_w=None, row_h=56, first_col=True, band=True, body_a
     for ri, row in enumerate(rows):
         tcs = ""
         for ci, v in enumerate(row):
+            # セルの中の文字も検査する（表は列幅が決まっているので、長い語はセルからはみ出す）
+            inner = col_w[ci] - 24                       # 左右の内側余白ぶんを引く
+            ok, need, avail = ft.fits_box(str(v), "caption", inner, row_h - 12)
+            if not ok:
+                ft.warn_box(f"表のセル（{ri + 1}行{ci + 1}列）「{str(v)[:12]}」", need, avail)
             algn = "l" if ci == 0 else body_align
             if ri == 0:
                 algn = "l" if ci == 0 else "ctr"
@@ -61,13 +68,10 @@ def table(rows, x, y, w, col_w=None, row_h=56, first_col=True, band=True, body_a
 # ---------------------------------------------------------------- ガント（表＋図形バーのハイブリッド）
 # 背景の格子・属性列は PowerPoint の表で作る（行の追加や列幅の調整を人が普通にできる）。
 # バーだけ図形を重ねる（期間を自由な位置に置け、継続中は右端を尖らせられる）。
-GANTT_MONTHS = ["7月", "8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月"]
-GANTT_ROWS = [  # (タスク, 担当, 状態, 開始, 終了, 色, 継続中か)
-    ("連載 #1〜#3 執筆", "担当A", "完了", 0, 3, "accent1", False),
-    ("Office テンプレート開発", "担当A", "進行中", 2, 5, "accent1", False),
-    ("連載 #4〜#6 執筆", "担当A", "予定", 4, 7, "accent1", False),
-    ("社内展開", "編集チーム", "未着手", 6, 9, "accent6", True),
-]
+# ガントの中身もブランド側（design/samples.json）から。スクリプトに書くと差し替えた人に残る
+_S = json.loads((BRAND / "design/samples.json").read_text()) if (BRAND / "design/samples.json").exists() else {}
+GANTT_MONTHS = _S.get("gantt", {}).get("months", [])
+GANTT_ROWS = [tuple(r) for r in _S.get("gantt", {}).get("rows", [])]
 
 
 def text_w(s, pt):

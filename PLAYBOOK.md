@@ -118,11 +118,23 @@ Noto Sans JP の**静的フォント**（Regular / Bold）を `~/Library/Fonts` 
 
 ```bash
 cp -r bigtree ~/mybrand                      # 一式をコピー
-# コピーには作者の文章（図解の中の名前、サンプル資料の文）も付いてきます。
-# design/samples.json と design/figma_organisms.json の文言は、自分のものに置き換えてください
 # ~/mybrand/design/tokens.json の colors と type_pptx / type_docx を書き換える
 OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
 ```
+
+### 差し替えるファイルは3つだけ
+
+**コピーには作者の文章が付いてきます。** 自分のものに置き換える場所は、この3つです。
+
+| ファイル | 中身 | 手当て |
+|---|---|---|
+| `design/tokens.json` | 色・文字サイズ・**ブランドの文字列**（名前・著作権表示・作成者） | 必ず書き換える |
+| `design/samples.json` | **サンプル資料の文章**（表紙・扉・本文・図解スライドの題名・グラフの数字・ガント） | 必ず書き換える |
+| `design/figma_organisms.json` | 図解の中の文言（20種・200件以上） | 使う図解のぶんだけ書き換える |
+
+**逆に、それ以外には作者の文章は入っていません。** レイアウトの書き出し（`figma_layouts.json`）は
+`{{sample}}` という差し込み口になっていて、値は `samples.json` から入ります。スクリプトにも文章はありません。
+**理由：実文が散らばっていると、差し替えたつもりで作者の名前が資料に残るためです**（実際に何度も起きました）。
 
 `tokens.json` が**色と文字サイズの唯一の正**です。ここを変えると、POTX のテーマ・マスター・
 Word のスタイル・**グラフの中の文字サイズ**まで、まとめて変わります。

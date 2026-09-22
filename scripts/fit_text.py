@@ -98,6 +98,14 @@ def warn(text, style, box_px, where="", roles=None):
     return ok
 
 
+def warn_box(where, need, avail):
+    """折り返しありの枠に収まらないときの警告（図解・表で使う）。同じ内容は1回だけ。"""
+    key = ("box", where, need, avail)
+    if key not in WARNED:
+        WARNED.add(key)
+        print(f"⚠ 収まらない {where}：{need}行必要（枠は{avail}行）", file=sys.stderr)
+
+
 def limits(roles=None):
     """役割ごとの上限文字数（全角だけ／半角英数だけ）の目安。"""
     roles = roles or bp._TOKENS["type_pptx"]["roles"]

@@ -87,7 +87,7 @@
           ],
           "style": "caption",
           "color": "dk2",
-          "text": "公開用 ｜ ドラフト",
+          "text": "{{sample}}",
           "pill": {
             "stroke": "dk2",
             "stroke_px": 2,
@@ -110,7 +110,7 @@
           ],
           "style": "body",
           "color": "dk1",
-          "text": "だいきの試作室　読者のみなさまへ"
+          "text": "{{sample}}"
         },
         {
           "name": "Title",
@@ -124,7 +124,7 @@
           ],
           "style": "cover",
           "color": "dk1",
-          "text": "note トラフィック\nレポート"
+          "text": "{{sample}}"
         },
         {
           "name": "Decor_Line",
@@ -150,7 +150,7 @@
           ],
           "style": "lead",
           "color": "dk2",
-          "text": "2026年9月の読まれ方と次の一手"
+          "text": "{{sample}}"
         },
         {
           "name": "Meta",
@@ -225,7 +225,7 @@
           ],
           "style": "lead",
           "color": "accent1",
-          "text": "01"
+          "text": "{{sample}}"
         },
         {
           "name": "Title",
@@ -239,7 +239,7 @@
           ],
           "style": "section",
           "color": "dk1",
-          "text": "今月の読まれ方"
+          "text": "{{sample}}"
         },
         {
           "name": "Decor_Line",
@@ -325,7 +325,7 @@
           ],
           "style": "lead",
           "color": "accent2",
-          "text": "01"
+          "text": "{{sample}}"
         },
         {
           "name": "Title",
@@ -339,7 +339,7 @@
           ],
           "style": "section",
           "color": "lt1",
-          "text": "今月の読まれ方"
+          "text": "{{sample}}"
         },
         {
           "name": "Decor_Line",
@@ -420,7 +420,7 @@
           ],
           "style": "title",
           "color": "dk1",
-          "text": "目次"
+          "text": "{{sample}}"
         },
         {
           "name": "Copyright",
@@ -490,7 +490,7 @@
           ],
           "style": "title",
           "color": "lt1",
-          "text": "写真ギャラリー"
+          "text": "{{sample}}"
         },
         {
           "name": "Copyright",
@@ -560,7 +560,7 @@
           ],
           "style": "title",
           "color": "dk1",
-          "text": "PV は前月比 128%、スキは 1.6 倍に伸びた"
+          "text": "{{sample}}"
         },
         {
           "name": "Decor_Line",
@@ -586,7 +586,7 @@
           ],
           "style": "lead",
           "color": "accent1",
-          "text": "連載 #3 が検索から読まれ続け、全体を押し上げている"
+          "text": "{{sample}}"
         },
         {
           "name": "Content",
@@ -601,7 +601,7 @@
           ],
           "style": "body",
           "color": "dk1",
-          "text": "本文（Claude が Organism・グラフ・表を配置する）"
+          "text": "{{sample}}"
         },
         {
           "name": "Logo_Small",
@@ -682,7 +682,7 @@
           ],
           "style": "title",
           "color": "dk1",
-          "text": "記事別 PV・スキ一覧（2026年9月）"
+          "text": "{{sample}}"
         },
         {
           "name": "Decor_Line",
@@ -708,7 +708,7 @@
           ],
           "style": "body",
           "color": "dk1",
-          "text": "本文（Claude が Organism・グラフ・表を配置する）"
+          "text": "{{sample}}"
         },
         {
           "name": "Logo_Small",

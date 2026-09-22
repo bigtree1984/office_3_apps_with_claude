@@ -21,6 +21,10 @@ BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()   # 
 OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()         # generated files (gitignored)
 OUT.mkdir(parents=True, exist_ok=True)
 SPEC = json.loads((BRAND / "design/figma_layouts.json").read_text())
+# サンプルの文言（表紙・扉・本文）はブランド側に置く。スクリプトやレイアウト書き出しに
+# 実文を持たせると、ブランドを差し替えた人の資料に作者の文章が残る
+_SP = BRAND / "design/samples.json"
+_SAMPLES = json.loads(_SP.read_text()) if _SP.exists() else {}
 EMU = bp.W / SPEC["frame"][0]  # 6350
 XML, NS, REL, CT = bp.XML, bp.NS, bp.REL, bp.CT
 SCHEME = {"dk1": "tx1", "lt1": "bg1", "dk2": "tx2", "lt2": "bg2"}
@@ -313,8 +317,12 @@ def picture(item, rid):
 
 # ---------------------------------------------------------------- shapes
 def rect(item):
+    # PLAYBOOK §3-8 は「キービジュアルが無ければ kind:"picture" を "rect" に置き換える」と案内している。
+    # picture の item は box/color ではなく fill_box/fill を持つため、どちらの綴りも受ける。
+    box = item.get("box") or item["fill_box"]
+    color = item.get("color") or item.get("fill") or "lt2"
     return (f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}"/><p:cNvSpPr/><p:nvPr userDrawn="1"/></p:nvSpPr>'
-            f'<p:spPr>{xfrm(item["box"])}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>{clr(item["color"])}<a:ln><a:noFill/></a:ln></p:spPr>'
+            f'<p:spPr>{xfrm(box)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>{clr(color)}<a:ln><a:noFill/></a:ln></p:spPr>'
             '<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="ja-JP"/></a:p></p:txBody></p:sp>')
 
 
@@ -335,6 +343,20 @@ def ph_attr(item):
 
 # Figma の書き出しにはブランドの文字列が入っている。名前で拾って tokens.json の brand で上書きする
 # （そうしないと、トークンを差し替えても「© 2026 前のブランド名」が残る）
+LAYOUT_TEXTS = _SAMPLES.get("layout_texts", {})
+
+
+def with_sample(item, layout_name):
+    """`{{sample}}` を samples.json の文言に置き換える。
+
+    レイアウトの書き出しに実文を持たせると、ブランドを差し替えた人の表紙に
+    作者の文章（「note トラフィックレポート」など）が残る。文言は samples.json に集約する。
+    """
+    if item.get("text") == "{{sample}}":
+        return {**item, "text": LAYOUT_TEXTS.get(layout_name, {}).get(item["name"], "")}
+    return item
+
+
 def with_brand(item):
     """`{{brand.xxx}}` と書かれた文字を tokens.json の brand の値に置き換える。
 
@@ -472,9 +494,9 @@ def layout(spec):
         elif k == "rect":
             shapes.append(rect(it))
         elif k == "text":
-            shapes.append(text(with_brand(it)))
+            shapes.append(text(with_brand(with_sample(it, spec["name"]))))
         elif k == "ph":
-            shapes.append(placeholder(it))
+            shapes.append(placeholder(with_sample(it, spec["name"])))
     g = guides_xml(spec["guides"], "{DCECCB84-F9BA-43D5-87BE-67443E8EF086}", "layout")
     xml = (XML + f'<p:sldLayout {NS} preserve="1" userDrawn="1" showMasterSp="0"><p:cSld name="{spec["name"]}">'
            f'<p:bg><p:bgPr>{clr(spec["bg"])}<a:effectLst/></p:bgPr></p:bg>{bp.sptree(shapes)}</p:cSld>'
@@ -485,7 +507,6 @@ def layout(spec):
 # ---------------------------------------------------------------- sample slides (one per layout)
 # サンプルの文章はブランド側（design/samples.json）に置く。
 # **スクリプトに書くと、ブランドを差し替えた人の資料に作者の文章が残る**（実際に踏まれた）
-_SAMPLES = json.loads((BRAND / "design/samples.json").read_text()) if (BRAND / "design/samples.json").exists() else {}
 SAMPLE_CONTENT = {k: [tuple(x) for x in v] for k, v in _SAMPLES.get("slides", {}).items()}
 
 
@@ -498,9 +519,9 @@ def sample_slide(spec):
         if it["ph"] == "obj":
             lines = SAMPLE_CONTENT.get(spec["name"], [])
             body = "".join(f'<a:p><a:pPr lvl="{lv}"/><a:r><a:rPr lang="ja-JP"/><a:t>{bp_esc(t)}</a:t></a:r></a:p>' for lv, t in lines)
-            shapes.append(placeholder(it, on_slide=True, content=body))
+            shapes.append(placeholder(with_sample(it, spec["name"]), on_slide=True, content=body))
         else:
-            shapes.append(placeholder(it, on_slide=True))
+            shapes.append(placeholder(with_sample(it, spec["name"]), on_slide=True))
     return XML + f'<p:sld {NS}><p:cSld>{bp.sptree(shapes)}</p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>'
 
 

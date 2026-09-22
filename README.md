@@ -103,7 +103,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # 自分のブランドで作る（値・ロゴ・レイアウトの書き出しを置いたフォルダを指定）
 cp -r bigtree ~/mybrand      # 雛形だけ欲しいときは templates/tokens.template.json
-                             # ※ 図解やサンプル資料の文章も付いてくるので、自分のものに置き換えてください
+                             # ※ 差し替えるのは design/ の3ファイル（tokens / samples / figma_organisms）
 OFFICE3_BRAND=~/mybrand .venv/bin/python scripts/build_potx_figma.py
 ```
 

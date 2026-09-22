@@ -147,8 +147,10 @@ def layout_html(lay, assets):
                 inner = f'<img src="{src}" style="width:100%;height:100%;object-fit:contain">'
             body += el(name, x, y, w, h, inner)
         elif kind == "rect":
-            x, y, w, h = it["box"]
-            body += el(name, x, y, w, h, "", f'background:{hexc(it.get("color", "dk1"), it.get("opacity", 1))};')
+            # picture から差し替えた item は fill_box / fill のことがある（PLAYBOOK §3-8）
+            x, y, w, h = it.get("box") or it["fill_box"]
+            fill = it.get("color") or it.get("fill") or "dk1"
+            body += el(name, x, y, w, h, "", f'background:{hexc(fill, it.get("opacity", 1))};')
         elif kind in ("ph", "text"):
             it = bpf.with_brand(it)          # 出力と同じ文字を見せる（§ ③ プレビューと実物がズレていた）
             if it.get("ph") == "sldNum":
