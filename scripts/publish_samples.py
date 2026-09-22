@@ -63,7 +63,9 @@ def scan_sources():
     bad = []
     me = Path(__file__).resolve()
     files = (list(ROOT.glob("scripts/*.py")) + list(ROOT.glob("*.md")) + list(ROOT.glob("notes/*.md"))
-             + list(BRAND.glob("design/*.md")))          # 利用者のブランド配下の md も見る
+             + list(BRAND.rglob("*.md")))
+    # ブランド配下は **design だけでなく丸ごと**見る。理由：assets の作業メモが検査の外にあり、
+    # 素性の分かる社名（クラウドのプロジェクト名）が公開物に残っていた
     for f in sorted(set(files)):
         if f.resolve() == me:      # この検査スクリプト自身（禁止語の一覧を持っている）は除く
             continue
