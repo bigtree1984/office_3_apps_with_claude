@@ -91,18 +91,8 @@ TXT = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{sz}"><a:solid
 
 
 def label_on(fill):
-    """塗りの上に置く文字の色を、塗りの明るさから決める（濃い色なら白抜き）。
-
-    色は tokens.json の実際の値で判定する。パレットを変えれば判定も追従する。
-    しきい値 0.18 は「白文字と黒文字のコントラストが入れ替わる明るさ」（WCAG の計算式から）。
-    中間のグレー（accent4）は黒文字のほうが読めるので、ここで切り分かれる。
-    """
-    hexv = build_potx.COLORS.get(fill, "000000")
-    r, g, b = (int(hexv[i:i + 2], 16) / 255 for i in (0, 2, 4))
-    def lin(c):
-        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-    lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-    return "lt1" if lum < 0.18 else "tx1"
+    """塗りの上に置く文字の色（グラフ用。テーマの配色名で返す）。判定は build_potx に集約。"""
+    return {"lt1": "lt1", "dk1": "tx1"}[build_potx.text_on(fill)]
 
 
 def dlbls(kind, n, highlighted, fmt, clr="tx1"):

@@ -20,6 +20,7 @@
 使い方：.venv/bin/python scripts/preview.py [--open]
 """
 import base64
+import re
 import json
 import os
 import sys
@@ -69,26 +70,20 @@ def data_uri(path):
            + base64.b64encode(path.read_bytes()).decode()
 
 
-def rgb(color):
-    """トークン名でも 6桁の hex でも受け取って (r, g, b) にする。"""
-    h = COLORS.get(color, color if isinstance(color, str) and len(color) == 6 else "888888")
-    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+MONO_SVG = {}
 
 
-def blend(fg, bg, alpha):
-    """半透明の塗りを下の色と混ぜる（薄い塗りを不透明として測ると誤検知になる）。"""
-    a, b = rgb(fg), rgb(bg)
-    return "".join(f"{int(round((a[i] * alpha + b[i] * (1 - alpha)) * 255)):02x}" for i in range(3))
+def is_mono_svg(path):
+    """SVG の中の塗りが1色以下か。出力側（build_potx_figma.logo）と同じ判定にする
+    （fill 属性と style="fill:..." の両方を見る）。単色ならテーマ色で塗り替えられる。"""
+    if not path.exists() or path.suffix.lower() != ".svg":
+        return False
+    t = path.read_text(errors="ignore")
+    fills = set(re.findall(r'fill="(#[0-9A-Fa-f]{6})"', t)) | set(re.findall(r'fill:\s*(#[0-9A-Fa-f]{6})', t))
+    return len(fills) <= 1
 
 
-def contrast(fg, bg):
-    """2色のコントラスト比（WCAG）。"""
-    def lum(color):
-        r, g, b = rgb(color)
-        f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
-    a, b = sorted((lum(fg), lum(bg)))
-    return (b + 0.05) / (a + 0.05)
+rgb, blend, contrast = bp.rgb, bp.blend, bp.contrast      # 判定は build_potx に集約
 
 
 def contrast_warn(color, bg, role):
@@ -141,8 +136,16 @@ def layout_html(lay, assets):
                        "overflow:hidden;")
         elif kind == "logo":
             x, y, w, h = it["box"]
-            src = assets.get(it.get("svg", "logo"), "")
-            body += el(name, x, y, w, h, f'<img src="{src}" style="width:100%;height:100%;object-fit:contain">')
+            key = it.get("svg", "logo")
+            src = assets.get(key, "")
+            if MONO_SVG.get(key):
+                # 単色 SVG は出力側でテーマ色に塗り替えられる。プレビューでも同じ色にしないと、
+                # 「プレビューでは赤、PowerPoint ではピンク」という食い違いが起きる。
+                inner = (f'<div style="width:100%;height:100%;background:{hexc(it.get("color", "dk1"), it.get("opacity", 1))};'
+                         f'-webkit-mask:url({src}) center/contain no-repeat;mask:url({src}) center/contain no-repeat"></div>')
+            else:
+                inner = f'<img src="{src}" style="width:100%;height:100%;object-fit:contain">'
+            body += el(name, x, y, w, h, inner)
         elif kind == "rect":
             x, y, w, h = it["box"]
             body += el(name, x, y, w, h, "", f'background:{hexc(it.get("color", "dk1"), it.get("opacity", 1))};')
@@ -211,12 +214,14 @@ def main():
     fw, fh = spec["frame"]
     TOKENS["master_guides"] = spec.get("master_guides", [])
     assets = {"logo": data_uri(BRAND / bp.BRAND_INFO["logo"])}
+    MONO_SVG["logo"] = is_mono_svg(BRAND / bp.BRAND_INFO["logo"])
     for lay in spec["layouts"]:
         for it in lay["items"]:
             if it.get("kind") == "picture":
                 assets[it["image"]] = data_uri(BRAND / it["image"])
             elif it.get("svg"):
                 assets[it["svg"]] = data_uri(BRAND / it["svg"])
+                MONO_SVG[it["svg"]] = is_mono_svg(BRAND / it["svg"])
 
     cards = ""
     for lay in spec["layouts"]:

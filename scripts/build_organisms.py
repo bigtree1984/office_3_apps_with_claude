@@ -59,12 +59,45 @@ def path_xml(it, ox, oy):
             f'<a:pathLst><a:path w="{e(w)}" h="{e(h)}"{fill_attr}>{out}</a:path></a:pathLst></a:custGeom>')
 
 
-def shape(it, ox, oy):
+FIXED = []          # 自動で色を直した箇所（最後にまとめて報告する）
+
+
+def under_fill(items, upto, box):
+    """その文字の下に敷かれている色を、重なり順に混ぜながら求める（図解の地は白）。"""
+    cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
+    under = "lt1"
+    for other in items[:upto]:
+        if other["type"] == "TEXT":
+            continue
+        if other["x"] <= cx <= other["x"] + other["w"] and other["y"] <= cy <= other["y"] + other["h"]:
+            under = bp.blend(other.get("fill", "dk1"), under, other.get("fillOpacity", 1))
+    return under
+
+
+def text_fill(it, items, idx):
+    """図解の文字色。**白/黒の指定は、下地の明るさから決め直す。**
+
+    理由：JSON に「白」と書かれた値は、作者の濃いブランド色を前提にしている。
+    明るい色に差し替えた人は、そのままだと文字が読めなくなる（色を変えた人が必ず踏む）。
+    accent などの意図のある色は、そのまま尊重する。
+    """
+    want = it["fill"]
+    if want not in ("lt1", "dk1"):
+        return want
+    bg = under_fill(items, idx, [it["x"], it["y"], it["w"], it["h"]])
+    good = bp.text_on(bg)
+    if good != want:
+        FIXED.append(f'{it["name"]}（{want} → {good}）')
+    return good
+
+
+def shape(it, ox, oy, items=None, idx=0):
     box = [it["x"] + ox, it["y"] + oy, max(it["w"], 0.5), max(it["h"], 0.5)]
     tb = ' txBox="1"' if it["type"] == "TEXT" else ""
     nv = f'<p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{it["name"]}"/><p:cNvSpPr{tb}/><p:nvPr/></p:nvSpPr>'
     if it["type"] == "TEXT":
         key = STYLE_KEY[it["style"]]
+        it = {**it, "fill": text_fill(it, items, idx)} if items is not None else it
         paras = "".join(f'<a:p><a:r><a:rPr lang="ja-JP"/><a:t>{bpf.bp_esc(line)}</a:t></a:r></a:p>' for line in it["text"].split("\n"))
         return (f'<p:sp>{nv}<p:spPr>{bpf.xfrm(box)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>'
                 f'<p:txBody><a:bodyPr wrap="square" {bpf.ZERO} anchor="ctr"><a:noAutofit/></a:bodyPr>'
@@ -79,7 +112,7 @@ def shape(it, ox, oy):
 
 
 def group(name, org, ox, oy):
-    kids = "".join(shape(it, ox, oy) for it in org["items"])
+    kids = "".join(shape(it, ox, oy, org["items"], i) for i, it in enumerate(org["items"]))
     x, y, w, h = e(ox), e(oy), e(org["w"]), e(org["h"])
     return (f'<p:grpSp><p:nvGrpSpPr><p:cNvPr id="{bp.nid()}" name="organism/{name}"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
             f'<p:grpSpPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{w}" cy="{h}"/><a:chOff x="{x}" y="{y}"/><a:chExt cx="{w}" cy="{h}"/></a:xfrm></p:grpSpPr>'
@@ -156,6 +189,8 @@ def main():
     f["[Content_Types].xml"], f["ppt/presentation.xml"], f["ppt/_rels/presentation.xml.rels"] = ct.encode(), pres.encode(), prels.encode()
     out = OUT / bp.out_name("_organisms.pptx")
     out.write_bytes(bc.zip_bytes(f))
+    if FIXED:
+        print(f"（下地に合わせて文字色を自動で直しました: {len(FIXED)} か所 — {', '.join(FIXED[:4])}{' …' if len(FIXED) > 4 else ''}）")
     print(f"wrote {out.relative_to(OUT.parent)}")
 
 

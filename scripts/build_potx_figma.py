@@ -185,7 +185,10 @@ def logo_paths(rel=None):
                 stack.pop()
             continue
         tr = re.search(r' transform="([^"]*)"', tag)
-        fl = re.search(r' fill="(#[0-9A-Fa-f]{6})"', tag)
+        # Illustrator の SVG 書き出しは fill 属性ではなく style="fill:#RRGGBB" を書く。
+        # 両方を見ないと、多色ロゴが1色に潰れたまま（警告も出ずに）出力される。
+        fl = (re.search(r' fill="(#[0-9A-Fa-f]{6})"', tag)
+              or re.search(r'style="[^"]*\bfill:\s*(#[0-9A-Fa-f]{6})', tag))
         m = tf_mul(stack[-1][0], tf_parse(tr.group(1))) if tr else stack[-1][0]
         fill = fl.group(1)[1:].upper() if fl else stack[-1][1]
         if el == "g":

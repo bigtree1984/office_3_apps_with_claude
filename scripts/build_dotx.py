@@ -300,6 +300,31 @@ def table(rows):
             f'</w:tblPr><w:tblGrid>{grid}</w:tblGrid>{trs}</w:tbl>')
 
 
+def svg_to_png(svg, out_png, width=600):
+    """SVG を PNG にする（Word は SVG をそのまま置けないため）。
+
+    macOS の `sips` を使う。追加のインストールが要らないのが利点。
+    別の環境では、あらかじめ PNG を用意して brand.logo_png に書いてもらう想定。
+    """
+    import subprocess
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run(["sips", "-s", "format", "png", "-Z", str(width), str(svg), "--out", str(out_png)],
+                       capture_output=True, text=True)
+    return out_png if r.returncode == 0 and out_png.exists() else None
+
+
+def logo_png():
+    """Word に置くロゴの PNG。brand.logo_png があればそれを、無ければ SVG から作る。"""
+    info = build_potx.BRAND_INFO
+    if info.get("logo_png"):
+        p = BRAND / info["logo_png"]
+        return p if p.exists() else None
+    svg = BRAND / info["logo"]
+    if not svg.exists():
+        return None
+    return svg_to_png(svg, OUT / "logo_from_svg.png")
+
+
 def image(rid, cx, cy, name):
     return (f'<w:p><w:pPr><w:pStyle w:val="FigureBlock"/></w:pPr><w:r><w:drawing>'
             f'<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="1" name="{name}"/>'
@@ -324,30 +349,33 @@ def footer():
             + '</w:p></w:ftr>')
 
 
-def cover():
-    """表紙。項目は PowerPoint の表紙と同じ（区分・宛先・タイトル・サブタイトル・日付/作成者）。"""
-    return (sdt("資料の区分", "classification", "公開用 ｜ ドラフト", "Caption")
+def cover(logo_rid=None, logo_cx=0, logo_cy=0):
+    """表紙。項目は PowerPoint の表紙と同じ（区分・宛先・タイトル・サブタイトル・日付/作成者）。
+    ロゴがあれば先頭に置く（PowerPoint の表紙と揃える）。"""
+    head = image(logo_rid, logo_cx, logo_cy, "Logo") if logo_rid else ""
+    return (head + sdt("資料の区分", "classification", "公開用 ｜ ドラフト", "Caption")
             + sdt("宛先", "recipient", "〇〇〇〇 御中", "Normal")
             + sdt("タイトル", "title", "文書タイトル", "Title")
             + sdt("サブタイトル", "subtitle", "サブタイトル", "Subtitle")
-            + sdt("日付・作成者", "meta", "2026-00-00 ｜ 所属 ｜ 作成者", "Caption"))
+            + sdt("日付・作成者", "meta", build_potx.BRAND_INFO["meta"], "Caption"))
 
 
-def body_template():
-    return (cover() + toc() + p_style("Heading1", "見出し1") + para("本文をここに書きます。"))
+def body_template(logo=None):
+    return (cover(*(logo or (None, 0, 0))) + toc() + p_style("Heading1", "見出し1") + para("本文をここに書きます。"))
 
 
-def body_sample(img_rid, img_cx, img_cy):
+def body_sample(img_rid, img_cx, img_cy, logo=None):
     # 表示確認用のダミー。実データに見える文言は使わない（文字数は元のまま＝改ページ位置を動かさない）
     lorem = ("これはテンプレートの表示を確かめるためのダミー文書である。"
              "項目名も数値もすべて架空のもので、実在のデータを示すものではない。"
              "本文の行間、見出しの間隔、表や挿絵の流れ方、段落の続き方を確かめるために、同じ長さの段落を繰り返し置いている。")
     return "".join([
+        image(*logo, "Logo") if logo else "",
         sdt("資料の区分", "classification", "公開用 ｜ ドラフト", "Caption", placeholder=False),
         sdt("宛先", "recipient", "サンプル宛先　テンプレート確認用", "Normal", placeholder=False),
         sdt("タイトル", "title", "サンプル文書（表示確認用）", "Title", placeholder=False),
         sdt("サブタイトル", "subtitle", "ダミーテキストのみ・実データではない", "Subtitle", placeholder=False),
-        sdt("日付・作成者", "meta", "0000-00-00 ｜ サンプル ｜ 作成者名", "Caption", placeholder=False),
+        sdt("日付・作成者", "meta", build_potx.BRAND_INFO["meta"], "Caption", placeholder=False),
         toc(),
         p_style("Heading1", "この文書について"),
         para(lorem),
@@ -393,8 +421,20 @@ def build(path, kind, grid_on=False, embed=True):
             ("fontTable", "fontTable.xml"), ("theme", "theme/theme1.xml"), ("webSettings", "webSettings.xml")]
     extra_rels = [f'<Relationship Id="rIdFooter" Type="{REL}/footer" Target="footer1.xml"/>']
     overrides = []
+    logo = None
+    png = logo_png()
+    if png:
+        from PIL import Image
+        lw, lh = Image.open(png).size
+        lcx = int(TEXT_W * 635 * 0.12)          # 本文幅の 12%
+        logo = ("rIdLogo", lcx, int(lcx * lh / lw))
+        files["word/media/logo.png"] = png.read_bytes()
+        extra_rels.append(f'<Relationship Id="rIdLogo" Type="{REL}/image" Target="media/logo.png"/>')
+    else:
+        print("  （ロゴが無いので、表紙のロゴは省きます）")
+
     if kind == "template":
-        body = body_template()
+        body = body_template(logo)
     else:
         img_rid = cx = cy = None
         if FIGURE.exists():
@@ -408,7 +448,7 @@ def build(path, kind, grid_on=False, embed=True):
         else:
             print(f"  （挿絵が無いので、その段落は飛ばします: {FIGURE}）")
         extra_rels.append(f'<Relationship Id="rIdLink" Type="{REL}/hyperlink" Target="{build_potx.BRAND_INFO["url"]}" TargetMode="External"/>')
-        body = body_sample(img_rid, cx, cy)
+        body = body_sample(img_rid, cx, cy, logo)
 
     main = "wordprocessingml.template.main+xml" if kind == "template" else "wordprocessingml.document.main+xml"
     files["word/document.xml"] = (XML + f'<w:document {W_NS} {DRAW_NS}><w:body>{body}{sect_pr(grid_on)}</w:body></w:document>')

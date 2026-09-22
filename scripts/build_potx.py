@@ -45,6 +45,39 @@ COPYRIGHT = BRAND_INFO["copyright"]
 W, H = _TOKENS["slide"]["width_emu"], _TOKENS["slide"]["height_emu"]
 
 
+def rgb(color):
+    """トークン名でも 6桁の hex でも受け取って (r, g, b) にする。"""
+    h = COLORS.get(color, color if isinstance(color, str) and len(color) == 6 else "888888")
+    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def blend(fg, bg, alpha=1.0):
+    """半透明の塗りを下の色と混ぜる（薄い塗りを不透明として測ると誤判定になる）。"""
+    a, b = rgb(fg), rgb(bg)
+    return "".join(f"{int(round((a[i] * alpha + b[i] * (1 - alpha)) * 255)):02x}" for i in range(3))
+
+
+def contrast(fg, bg):
+    """2色のコントラスト比（WCAG）。"""
+    def lum(color):
+        r, g, b = rgb(color)
+        f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    a, b = sorted((lum(fg), lum(bg)))
+    return (b + 0.05) / (a + 0.05)
+
+
+def text_on(bg):
+    """その塗りの上に置く文字の色（"lt1" か "dk1"）。**実際のコントラスト比を比べて、高いほうを選ぶ。**
+
+    **色を差し替えた人を守るための判定。** 図解やグラフに「白文字」と書き込んでおくと、
+    明るいブランド色に変えた瞬間に読めなくなる（濃い色を前提にした値が残るため）。
+    明るさのしきい値で決める方法も試したが、中間色（例：#598977）で逆の答えを出したので、
+    **両方の比を計算して比べる**ことにした。
+    """
+    return "lt1" if contrast("lt1", bg) >= contrast("dk1", bg) else "dk1"
+
+
 def font_path(style="Regular"):
     """フォントの置き場所を返すだけ（存在するとは限らない）。"""
     return FONT_DIR / f'{FONT.replace(" ", "")}-{style}.ttf'
