@@ -69,6 +69,11 @@ def doc_charts(path):
         for frame in frames:
             chart = re.search(r'<c:chart [^>]*r:id="([^"]+)"', frame)
             if not chart:
+                # chartEx（ウォーターフォール）は別の名前空間なのでここに落ちる。
+                # **黙って飛ばすと「全部一致」と読めてしまう**ので、名前を出して未検査だと言う。
+                if re.search(r"<cx:chart[ >]", frame):
+                    nm = re.search(r'(?:cNvPr|docPr) id="\d+" name="([^"]*)"', frame)
+                    yield (nm.group(1) if nm else "(名前なし)"), None, None
                 continue
             name, rid = re.search(r'(?:cNvPr|docPr) id="\d+" name="([^"]*)"', frame).group(1), chart.group(1)
             tgt = re.search(rf'Id="{rid}"[^>]*Target="([^"]*)"', rels).group(1)
@@ -96,6 +101,10 @@ def main(xlsx_path, docs):
     for doc in docs:
         print(f"== {doc}")
         for name, chart_xml, emb in doc_charts(doc):
+            if chart_xml is None:
+                print(f"  {name} － chartEx（ウォーターフォール等）はこの検査の対象外です。"
+                      "数字は Excel を正として手で見てください")
+                continue
             m = re.match(r"graph(\d+)$", name)
             if not m:
                 print(f"  {name}: 対応する dataN が名前から分からないためスキップ")

@@ -144,7 +144,12 @@ def layout_html(lay, assets):
                 inner = (f'<div style="width:100%;height:100%;background:{hexc(it.get("color", "dk1"), it.get("opacity", 1))};'
                          f'-webkit-mask:url({src}) center/contain no-repeat;mask:url({src}) center/contain no-repeat"></div>')
             else:
-                inner = f'<img src="{src}" style="width:100%;height:100%;object-fit:contain">'
+                # 多色 SVG はそのまま貼るが、**透明度は単色と同じように効かせる**。
+                # 理由：透かし（opacity 0.12）を 100% で描くと、プレビューがロゴに占領されて
+                # レイアウトの判断ができない。出力側は alpha を書いているので、食い違いにもなる。
+                op = it.get("opacity", 1)
+                fade = "" if op >= 1 else f";opacity:{op}"
+                inner = f'<img src="{src}" style="width:100%;height:100%;object-fit:contain{fade}">'
             body += el(name, x, y, w, h, inner)
         elif kind == "rect":
             # picture から差し替えた item は fill_box / fill のことがある（PLAYBOOK §3-8）
