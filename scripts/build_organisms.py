@@ -87,10 +87,16 @@ def text_fill(it, items, idx):
     accent などの意図のある色は、そのまま尊重する。
     """
     want = it["fill"]
-    if want not in ("lt1", "dk1"):
+    MUTED = {"dk1": "dk2", "lt1": "lt2"}     # 本文色 → 同じ側の弱い色
+    weak = want in ("dk2", "lt2")
+    if want not in MUTED and not weak:
         return want
     bg = under_fill(items, idx, [it["x"], it["y"], it["w"], it["h"]])
     good = bp.text_on(bg)
+    if weak:
+        # **弱い文字も同じように決め直す。** 本文だけ直しても、補足や時刻ラベルが
+        # 地色に沈んだままになる（暗地ブランドで実際に読めなくなった）
+        good = MUTED[good]
     if good != want:
         FIXED.append(f'{it["name"]}（{want} → {good}）')
     return good

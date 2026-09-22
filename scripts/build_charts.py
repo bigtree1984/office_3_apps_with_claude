@@ -309,11 +309,13 @@ CX_COLOR_REL = "http://schemas.microsoft.com/office/2011/relationships/chartColo
 CX_STYLE_REL = "http://schemas.microsoft.com/office/2011/relationships/chartStyle"
 CX_COLOR_CT = "application/vnd.ms-office.chartcolorstyle+xml"
 CX_STYLE_CT = "application/vnd.ms-office.chartstyle+xml"
-WF_COLORS = ["accent1", "accent3", "tx1"]   # 増加・減少・合計
+def wf_colors():
+    """増加・減少・合計。**合計だけは地色に合わせる**（暗地で tx1 固定だと合計の棒が消える）。"""
+    return ["accent1", "accent3", ink()]
 
 
 def cx_colors():
-    body = "".join(f'<a:schemeClr val="{c}"/>' for c in WF_COLORS + ["accent4", "accent5", "accent2"])
+    body = "".join(f'<a:schemeClr val="{c}"/>' for c in wf_colors() + ["accent4", "accent5", "accent2"])
     return (XML + f'<cs:colorStyle {CS_NS} meth="cycle" id="10">{body}<cs:variation/>'
             '<cs:variation><a:lumMod val="60000"/></cs:variation>'
             '<cs:variation><a:lumMod val="80000"/><a:lumOff val="20000"/></cs:variation>'
@@ -325,8 +327,11 @@ def cx_style():
         # 棒の塗りは dataPoint の fillRef から来る。idx="0"（塗りなし）にすると棒が線だけになる
         fill = ('<cs:fillRef idx="1"><cs:styleClr val="auto"/></cs:fillRef>'
                 if tag.startswith("dataPoint") else '<cs:fillRef idx="0"/>')
+        # 棒をつなぐ横線は dataPointLine から来る。指定しないと黒のままで、暗地だと見えない
+        line = (f'<cs:spPr><a:ln w="9525"><a:solidFill><a:schemeClr val="{ink(False)}"/></a:solidFill></a:ln></cs:spPr>'
+                if tag == "dataPointLine" else "")
         return (f'<cs:{tag}><cs:lnRef idx="0"/>{fill}<cs:effectRef idx="0"/>'
-                f'<cs:fontRef idx="minor"><a:schemeClr val="tx1"/></cs:fontRef>{extra}</cs:{tag}>')
+                f'<cs:fontRef idx="minor"><a:schemeClr val="{ink()}"/></cs:fontRef>{line}{extra}</cs:{tag}>')
     tags = ["axisTitle", "categoryAxis", "chartArea", "dataLabel", "dataLabelCallout", "dataPoint",
             "dataPoint3D", "dataPointLine", "dataPointMarker", "dataPointWireframe", "dataTable",
             "downBar", "dropLine", "errorBar", "floor", "gridlineMajor", "gridlineMinor", "hiLoLine",
@@ -357,7 +362,7 @@ def chartex_xml(ch, sheet="Sheet1", embedded=True):
     vals = "".join(f'<cx:pt idx="{i}">{x[1]}</cx:pt>' for i, x in enumerate(steps))
     subs = "".join(f'<cx:idx val="{i}"/>' for i, x in enumerate(steps) if x[2] == "total")
     txt = (f'<cx:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="{SZ}">'
-           '<a:solidFill><a:schemeClr val="tx1"/></a:solidFill>'
+           f'<a:solidFill><a:schemeClr val="{ink()}"/></a:solidFill>'
            '<a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/></a:defRPr></a:pPr></a:p></cx:txPr>')
     ext = '<cx:externalData r:id="rId1" cx:autoUpdate="0"/>' if embedded else ""
     return (XML + f'<cx:chartSpace {CX_NS}><cx:chartData>{ext}'
