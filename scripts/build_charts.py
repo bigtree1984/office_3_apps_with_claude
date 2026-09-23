@@ -36,7 +36,16 @@ CT = "application/vnd.openxmlformats-officedocument"
 # 作者の数字が残らないようにするため。無ければ空（グラフ無しで通る）
 import json as _json
 _SPATH = BRAND / "design/samples.json"
-CHARTS = _json.loads(_SPATH.read_text())["charts"] if _SPATH.exists() else []
+_SAMPLES = _json.loads(_SPATH.read_text()) if _SPATH.exists() else {}
+CHARTS = _SAMPLES.get("charts", [])
+# グラフのリード文も文章なので、ブランド側で差し替えられるようにする。
+# 各グラフの "lead"、無ければ samples.json の "chart_lead"（{data} が差し込み口）、
+# それも無ければ下の既定。既定を英語や別の言い回しにしたい人が、スクリプトを触らずに済む
+CHART_LEAD = _SAMPLES.get("chart_lead", "データは {data}（横の report_charts.xlsx が正）")
+
+
+def chart_lead(ch):
+    return ch.get("lead") or CHART_LEAD.format(data=ch["data"])
 
 PALE = '<a:lumMod val="40000"/><a:lumOff val="60000"/>'  # theme tint, stays linked to the palette
 
@@ -581,7 +590,7 @@ def inject_pptx(src, dst):
                  f'<a:graphic><a:graphicData uri="{uri}">{tag}</a:graphicData></a:graphic></p:graphicFrame>')
         slide = build_potx.slide([
             build_potx.s_ph("Title", 'type="title"', [(0, ch["title"])]),
-            build_potx.s_ph("Lead", 'type="body" sz="quarter" idx="13"', [(0, f"データは {ch['data']}（横の report_charts.xlsx が正）")]),
+            build_potx.s_ph("Lead", 'type="body" sz="quarter" idx="13"', [(0, chart_lead(ch))]),
             frame, build_potx.s_num()])
         f[f"ppt/slides/slide{sn}.xml"] = slide.encode()
         f[f"ppt/slides/_rels/slide{sn}.xml.rels"] = (
@@ -657,5 +666,12 @@ if __name__ == "__main__":
     xlsx_path = OUT / "charts/report_charts.xlsx"
     xlsx_path.write_bytes(xlsx(order))
     print(f"wrote {xlsx_path}")
-    inject_pptx(OUT / build_potx.out_name("_sample.pptx"), OUT / build_potx.out_name("_charts.pptx"))
-    inject_docx(OUT / build_potx.out_name("_sample.docx"), OUT / build_potx.out_name("_charts.docx"))
+    for kind, inject, src in (("PowerPoint", inject_pptx, "_sample.pptx"), ("Word", inject_docx, "_sample.docx")):
+        path = OUT / build_potx.out_name(src)
+        # **見本が無い側は飛ばす。** PowerPoint だけ使う人は build_dotx.py を走らせないので、
+        # 以前はここで「ファイルが無い」と落ちていた（グラフは PPTX まで出来ているのに止まる）
+        if not path.exists():
+            print(f"（{kind} の見本 {path.name} が無いので飛ばします。要るなら "
+                  f"build_{'potx_figma' if kind == 'PowerPoint' else 'dotx'}.py を先に走らせてください）")
+            continue
+        inject(path, OUT / build_potx.out_name(src.replace("_sample", "_charts")))

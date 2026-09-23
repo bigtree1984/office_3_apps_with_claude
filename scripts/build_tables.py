@@ -23,16 +23,8 @@ OUT = Path(os.environ.get("OFFICE3_OUT") or ROOT / "build").resolve()         # 
 OUT.mkdir(parents=True, exist_ok=True)
 e = bpf.e
 
-DATA_TABLE = [["記事", "公開日", "PV", "スキ", "スキ率"],
-              ["#1 はじめに：AI と一緒に note を書く", "09-02", "2,140", "96", "4.5%"],
-              ["#2 挿絵は HTML で作る", "09-09", "1,820", "121", "6.6%"],
-              ["#3 眠っていた才能", "09-16", "3,560", "214", "6.0%"],
-              ["#4 Office テンプレート編（予定）", "09-30", "—", "—", "—"]]
-COMPARE = [["", "AI に任せきり", "人が全部書く", "今回のやり方"],
-           ["下書きの速さ", "速い", "遅い", "速い"],
-           ["一次情報", "入らない", "入る", "入る"],
-           ["見た目の統一", "毎回ぶれる", "手間がかかる", "トークンで自動"],
-           ["読者への価値", "薄い", "高い", "高い"]]
+# 見本の表と、その題名・リード文はブランド側（design/samples.json の table_slides）に置く。
+# スクリプトに書くと、ブランドを差し替えた人の資料に作者の文章が残る（README と食い違う）
 
 
 def table(rows, x, y, w, col_w=None, row_h=56, first_col=True, band=True, body_align="r"):
@@ -72,6 +64,7 @@ def table(rows, x, y, w, col_w=None, row_h=56, first_col=True, band=True, body_a
 _S = json.loads((BRAND / "design/samples.json").read_text()) if (BRAND / "design/samples.json").exists() else {}
 GANTT_MONTHS = _S.get("gantt", {}).get("months", [])
 GANTT_ROWS = [tuple(r) for r in _S.get("gantt", {}).get("rows", [])]
+TABLE_SLIDES = _S.get("table_slides", [])
 
 
 def text_w(s, pt):
@@ -127,10 +120,8 @@ def main():
     prels = f["ppt/_rels/presentation.xml.rels"].decode()
     n = len([k for k in f if re.match(r"ppt/slides/slide\d+\.xml$", k)])
     layout_no = bpf.BODY_LAYOUT_NO
-    slides = [(DATA_TABLE, "記事別の読まれ方", "連載 #3 が PV・スキとも最も多い",
-               [560, 140, 200, 180, 216], "r"),        # numbers: right aligned
-              (COMPARE, "3つの書き方の違い", "速さと一次情報は両立できる", None, "ctr")]  # words: centered
-    slides.append((None, "Office テンプレート開発の進め方", "9月で開発は一区切り。10月以降は連載と社内展開", None, None))
+    # rows が null の枠はガントを描く（数字の表ではなく、期間の帯なので別扱い）
+    slides = [(s["rows"], s["title"], s["lead"], s.get("col_w"), s.get("align")) for s in TABLE_SLIDES]
     for i, (rows, title, lead, col_w, body_align) in enumerate(slides, 1):
         bp._id[0] = 1
         content = gantt(cx, cy + 16, cw) if rows is None else [table(rows, cx, cy + 16, cw, col_w, body_align=body_align)]
