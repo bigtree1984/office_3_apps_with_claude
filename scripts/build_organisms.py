@@ -64,18 +64,27 @@ def path_xml(it, ox, oy):
 FIXED = []          # 自動で色を直した箇所（最後にまとめて報告する）
 
 
+GROUND = [None]     # いま組んでいる図解の地色（None なら本文レイアウトの地色）
+
+
 def under_fill(items, upto, box):
     """その文字の下に敷かれている色を、重なり順に混ぜながら求める。
 
     **一番下はスライドの地色**（白決め打ちにすると、暗地に変えた人の図解で文字が消える）。
+    図解を暗地の構造レイアウト（目次など）に置くときは、その地色を使う（group の bg）。
+    本文レイアウトの地色で決め打ちすると、暗地の目次で「白」が「濃紺」に直されて文字が消える
     """
     cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
-    under = bpf.BODY_BG
+    under = GROUND[0] or bpf.BODY_BG
     for other in items[:upto]:
         if other["type"] == "TEXT":
             continue
+        # 塗りの無い図形（輪・縁取りだけの枠）は下地にならない。以前は無い塗りを dk1 とみなしていたため、
+        # 円環の中央の文字が「濃紺の上」と判定されて白に直され、白地の上で消えた
+        if not other.get("fill"):
+            continue
         if other["x"] <= cx <= other["x"] + other["w"] and other["y"] <= cy <= other["y"] + other["h"]:
-            under = bp.blend(other.get("fill", "dk1"), under, other.get("fillOpacity", 1))
+            under = bp.blend(other["fill"], under, other.get("fillOpacity", 1))
     return under
 
 
@@ -125,8 +134,11 @@ def shape(it, ox, oy, items=None, idx=0):
     return f'<p:sp>{nv}<p:spPr>{bpf.xfrm(box)}{geom}{fill(it)}{line}</p:spPr></p:sp>'
 
 
-def group(name, org, ox, oy):
+def group(name, org, ox, oy, bg=None):
+    """bg：置くスライドの地色（トークン名）。省略すると図解の "bg"、それも無ければ本文レイアウトの地色"""
+    GROUND[0] = bg or org.get("bg")
     kids = "".join(shape(it, ox, oy, org["items"], i) for i, it in enumerate(org["items"]))
+    GROUND[0] = None
     x, y, w, h = e(ox), e(oy), e(org["w"]), e(org["h"])
     return (f'<p:grpSp><p:nvGrpSpPr><p:cNvPr id="{bp.nid()}" name="organism/{name}"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
             f'<p:grpSpPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{w}" cy="{h}"/><a:chOff x="{x}" y="{y}"/><a:chExt cx="{w}" cy="{h}"/></a:xfrm></p:grpSpPr>'
@@ -141,7 +153,7 @@ STRUCTURE_SLIDES = [tuple(x) for x in _S.get("structure_slides", [])]
 
 
 def main():
-    body = next(l for l in bpf.SPEC["layouts"] if l["name"] == "06_本文")
+    body = bpf.BODY_LAYOUT
     it = {i["name"]: i for i in body["items"]}
     cx, cy, cw, ch = it["Content"]["box"]
     f = bc.read_zip(OUT / bp.out_name("_sample.pptx"))
@@ -149,7 +161,7 @@ def main():
     pres = f["ppt/presentation.xml"].decode()
     prels = f["ppt/_rels/presentation.xml.rels"].decode()
     n = len([k for k in f if re.match(r"ppt/slides/slide\d+\.xml$", k)])
-    layout_no = [l["name"] for l in bpf.SPEC["layouts"]].index("06_本文") + 1
+    layout_no = bpf.BODY_LAYOUT_NO
     for i, (oname, title, lead) in enumerate(SLIDES, 1):
         org = ORG[oname]
         bp._id[0] = 1

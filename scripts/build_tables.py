@@ -119,14 +119,14 @@ e_ = lambda px: bpf.e(px)
 
 
 def main():
-    body = next(l for l in bpf.SPEC["layouts"] if l["name"] == "06_本文")
+    body = bpf.BODY_LAYOUT
     it = {i["name"]: i for i in body["items"]}
     cx, cy, cw, ch = it["Content"]["box"]
     f = bc.read_zip(OUT / bpf.bp.out_name("_organisms.pptx"))
     ct, pres = f["[Content_Types].xml"].decode(), f["ppt/presentation.xml"].decode()
     prels = f["ppt/_rels/presentation.xml.rels"].decode()
     n = len([k for k in f if re.match(r"ppt/slides/slide\d+\.xml$", k)])
-    layout_no = [l["name"] for l in bpf.SPEC["layouts"]].index("06_本文") + 1
+    layout_no = bpf.BODY_LAYOUT_NO
     slides = [(DATA_TABLE, "記事別の読まれ方", "連載 #3 が PV・スキとも最も多い",
                [560, 140, 200, 180, 216], "r"),        # numbers: right aligned
               (COMPARE, "3つの書き方の違い", "速さと一次情報は両立できる", None, "ctr")]  # words: centered

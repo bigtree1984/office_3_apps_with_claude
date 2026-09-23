@@ -58,8 +58,56 @@ def hexc(name, opacity=1):
 
 def font_css(role):
     r = ROLES[role]
-    return (f'font-size:{r["pt"] * PX}px;font-weight:{700 if r["weight"] == "Bold" else 400};'
+    # 見出しだけ別の書体（"font": "heading"）のときは、その書体で描く。出力側（テーマの +mj / +mn）と同じ分け方
+    return (f"font-family:'{bp.role_family(r)}',serif;" if r.get("font") == "heading" else "") + (
+            f'font-size:{r["pt"] * PX}px;font-weight:{700 if r["weight"] == "Bold" else 400};'
             f'line-height:{r["line"]}%;')
+
+
+# ---------------------------------------------------------------- 関所① 配色：パレットの一覧と、並び順の見本
+# PLAYBOOK §5「見た目は3か所で見せて確定させる」の①。色の値だけでなく、**どの枠に何を置いたか**と
+# **白黒にしても区別できるか（L*）**、**地色の上で読めるか（コントラスト比）**を一緒に見せる。
+# 数字を並べるだけでは判断できないので、自動配色の順に塗った棒と、明地・暗地の文字見本を添える。
+SLOT_ROLE = {"dk1": "基本の文字", "lt1": "基本の地", "dk2": "補助の文字", "lt2": "補助の地",
+             "accent1": "有彩色1（自動配色の1番目・図形の既定）", "accent2": "有彩色2（自動配色の2番目）",
+             "accent3": "グレー濃", "accent4": "グレー中", "accent5": "グレー淡",
+             "accent6": "強調（自動では使われない）", "hlink": "リンク", "folHlink": "訪問済みリンク"}
+
+
+def lstar(color):
+    r, g, b = rgb(color)
+    f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    y = 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    return 116 * y ** (1 / 3) - 16 if y > 0.008856 else 903.3 * y
+
+
+def palette_html():
+    names = TOKENS.get("_colors_name", {})
+    sw = ""
+    for k, v in COLORS.items():
+        ink = "#fff" if contrast("lt1", k) >= contrast("dk1", k) else f"#{COLORS['dk1']}"
+        sw += (f'<div class="sw" data-name="{k}" data-box="#{v}"><div class="chip" style="background:#{v};color:{ink}">'
+               f'{esc(names.get(k, ""))}</div><b>{k}</b> <code>#{v}</code><br><small>{esc(SLOT_ROLE.get(k, ""))}</small><br>'
+               f'<small>L* {lstar(k):.0f} ｜ 白地 {contrast(k, "lt1"):.1f} ｜ 暗地 {contrast(k, "dk1"):.1f}</small></div>')
+    # 自動配色の順（accent1→5）で塗った棒。強調だけ accent6
+    cats, bars = ["W1", "W2", "W3", "W4"], ""
+    vals = [[62, 70, 66, 80], [40, 46, 52, 50], [30, 28, 34, 36], [22, 24, 20, 26], [12, 14, 16, 15]]
+    for i, c in enumerate(cats):
+        grp = "".join(f'<div class="bar" style="height:{v[i] * 2}px;background:{hexc("accent6") if (n == 0 and i == 3) else hexc(f"accent{n + 1}")}"></div>'
+                      for n, v in enumerate(vals))
+        bars += f'<div class="grp">{grp}<span>{c}</span></div>'
+    sample = lambda bg, fg, sub, acc: (
+        f'<div class="ground" style="background:{hexc(bg)}"><div style="color:{hexc(fg)};{font_css("title")}">スライドタイトル（見出し書体）</div>'
+        f'<div style="color:{hexc(acc)};{font_css("lead")}">リード文：結論を1行で</div>'
+        f'<div style="color:{hexc(fg)};{font_css("body")}">本文 14pt。数字 12,480 と English text</div>'
+        f'<div style="color:{hexc(sub)};{font_css("caption")}">補足 11pt ※ 数値はダミー</div>'
+        f'<div style="color:{hexc("accent6")};{font_css("lead")}">強調（accent6）</div></div>')
+    return ('<section class="card palette"><h2>関所① 配色<small>tokens.json の colors ｜ '
+            'L* は明るさ（白黒にしたときの見分け）、比は地色とのコントラスト（文字なら 3.0 以上）</small></h2>'
+            f'<div class="sws">{sw}</div><div class="row"><div><h3>グラフの自動配色（系列 1→5 の順。W4 の系列1だけ強調）</h3>'
+            f'<div class="bars">{bars}</div></div>'
+            f'<div><h3>明地（本文）</h3>{sample("lt1", "dk1", "dk2", "accent1")}</div>'
+            f'<div><h3>暗地（扉・表紙）</h3>{sample("dk1", "lt1", "accent5", "accent2")}</div></div></section>')
 
 
 def data_uri(path):
@@ -123,17 +171,25 @@ def text_el(name, box, text, role, color, align="left", opacity=1, wrap=False, b
     return el(name, x, y, w, h, inner, css, warn)
 
 
-def layout_html(lay, assets):
+def layout_html(lay, assets, spec_w=1440, spec_h=810):
     body = ""
     bg = lay["bg"]
     for it in lay["items"]:
         kind, name = it.get("kind"), it["name"]
         if kind == "picture":
-            x, y, w, h = it["fill_box"]
             src = assets.get(it["image"], "")
-            body += el(name, x, y, w, h,
-                       f'<img src="{src}" style="width:100%;height:100%;object-fit:cover">',
-                       "overflow:hidden;")
+            if "mask" in it:
+                x, y, w, h = it["fill_box"]
+                body += el(name, x, y, w, h,
+                           f'<img src="{src}" style="width:100%;height:100%;object-fit:cover">',
+                           "overflow:hidden;")
+            else:
+                # マスク無し：box（見える範囲）の中に fill_box の位置で画像を置いて切り抜く（出力の srcRect と同じ）
+                x, y, w, h = it.get("box") or it["fill_box"]
+                fx, fy, fw, fh = it["fill_box"]
+                body += el(name, x, y, w, h,
+                           f'<img src="{src}" style="position:absolute;left:{fx - x}px;top:{fy - y}px;'
+                           f'width:{fw}px;height:{fh}px;object-fit:cover">', "overflow:hidden;")
         elif kind == "logo":
             x, y, w, h = it["box"]
             key = it.get("svg", "logo")
@@ -155,9 +211,26 @@ def layout_html(lay, assets):
             # picture から差し替えた item は fill_box / fill のことがある（PLAYBOOK §3-8）
             x, y, w, h = it.get("box") or it["fill_box"]
             fill = it.get("color") or it.get("fill") or "dk1"
-            body += el(name, x, y, w, h, "", f'background:{hexc(fill, it.get("opacity", 1))};')
+            if it.get("gradient"):
+                g = it["gradient"]
+                stops = ",".join(f"{hexc(c, a)} {pos * 100:.0f}%" for pos, c, a in g["stops"])
+                # OOXML の角度（0＝左→右、90＝上→下）を CSS（90deg＝左→右、180deg＝上→下）に直す
+                body += el(name, x, y, w, h, "", f'background:linear-gradient({g.get("angle", 0) + 90}deg,{stops});')
+            else:
+                body += el(name, x, y, w, h, "", f'background:{hexc(fill, it.get("opacity", 1))};')
+        elif kind == "lines":
+            segs = it["segments"]
+            xs = [v for sg in segs for v in (sg[0], sg[2])]
+            ys = [v for sg in segs for v in (sg[1], sg[3])]
+            d = " ".join(f"M{a} {b} L{c} {dd}" for a, b, c, dd in segs)
+            body += (f'<svg class="el vec" viewBox="0 0 {spec_w} {spec_h}" style="left:0;top:0;width:{spec_w}px;height:{spec_h}px" '
+                     f'data-name="{esc(name)}" data-box="{min(xs):.0f}, {min(ys):.0f}, {max(xs) - min(xs):.0f}, {max(ys) - min(ys):.0f}">'
+                     f'<path d="{d}" fill="none" stroke="{hexc(it.get("color", "dk1"))}" stroke-opacity="{it.get("opacity", 1)}" '
+                     f'stroke-width="{it.get("w_px", 1)}"/></svg>')
         elif kind in ("ph", "text"):
-            it = bpf.with_brand(it)          # 出力と同じ文字を見せる（§ ③ プレビューと実物がズレていた）
+            # 出力と同じ文字を見せる（§ ③ プレビューと実物がズレていた）。{{sample}} も samples.json から埋める
+            # （埋めないと「{{sample}}」の長さで はみ出し判定をしてしまい、実際の文言の長さを確かめられない）
+            it = bpf.with_brand(bpf.with_sample(it, lay["name"]))
             if it.get("ph") == "sldNum":
                 txt = "3"
             else:
@@ -179,18 +252,25 @@ def layout_html(lay, assets):
 
 
 def under_fill(items, upto, box, frame_bg="lt1"):
+    frame_bg = GROUND[0] or frame_bg
     """その文字の下に敷かれている色を、重なり順に混ぜながら求める。"""
     cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
     under = frame_bg
     for it in items[:upto]:
         if it["type"] == "TEXT":
             continue
+        if not it.get("fill"):          # 塗りの無い図形（輪・縁取り）は下地にならない（出力側と同じ判定）
+            continue
         if it["x"] <= cx <= it["x"] + it["w"] and it["y"] <= cy <= it["y"] + it["h"]:
-            under = blend(it.get("fill", "dk1"), under, it.get("fillOpacity", 1))
+            under = blend(it["fill"], under, it.get("fillOpacity", 1))
     return under
 
 
+GROUND = [None]
+
+
 def organism_html(org):
+    GROUND[0] = org.get("bg")          # 暗地に置く図解（目次など）は、その地色で判定する
     body = ""
     for idx, it in enumerate(org["items"]):
         x, y, w, h = it["x"], it["y"], it["w"], it["h"]
@@ -200,7 +280,7 @@ def organism_html(org):
                             fill, it.get("align", "LEFT"), op, wrap=True,
                             bg=under_fill(org["items"], idx, [x, y, w, h]))
         elif t == "ELLIPSE":
-            body += el(name, x, y, w, h, "", f'background:{hexc(fill, op)};border-radius:50%;')
+            body += el(name, x, y, w, h, "", paint(it) + "border-radius:50%;")
         elif t in ("VECTOR", "POLYGON") and it.get("path"):
             # パスはフレーム座標なので、そのまま SVG に流し込む
             stroke = (f'stroke="{hexc(it["stroke"])}" stroke-width="{it.get("strokeW", 1)}"'
@@ -211,8 +291,17 @@ def organism_html(org):
                      f'data-name="{esc(name)}" data-box="{x:.0f}, {y:.0f}, {w:.0f}, {h:.0f}">'
                      f'<path d="{esc(it["path"])}" fill="{fill_attr}" {stroke}/></svg>')
         else:
-            body += el(name, x, y, w, h, "", f'background:{hexc(fill, op)};')
+            body += el(name, x, y, w, h, "", paint(it))
     return body
+
+
+def paint(it):
+    """四角・円の塗りと縁。**塗りが無い図形は透明**にする（出力側は fill が無ければ noFill。
+    以前は黒で塗っていて、円環だけの図が黒い円に見えた）"""
+    css = f'background:{hexc(it["fill"], it.get("fillOpacity", 1))};' if it.get("fill") else ""
+    if it.get("stroke"):
+        css += f'border:{it.get("strokeW", 1)}px solid {hexc(it["stroke"])};'
+    return css
 
 
 def main():
@@ -230,9 +319,9 @@ def main():
                 assets[it["svg"]] = data_uri(BRAND / it["svg"])
                 MONO_SVG[it["svg"]] = is_mono_svg(BRAND / it["svg"])
 
-    cards = ""
+    cards = palette_html()
     for lay in spec["layouts"]:
-        body, guides = layout_html(lay, assets)
+        body, guides = layout_html(lay, assets, fw, fh)
         cards += (f'<section class="card" data-kind="layout"><h2>{esc(lay["name"])}'
                   f'<small>レイアウト ｜ {fw}×{fh}px</small></h2>'
                   f'<div class="frame" style="width:{fw}px;height:{fh}px;background:{hexc(lay["bg"])}">'
@@ -240,7 +329,7 @@ def main():
     for name, org in orgs.items():
         cards += (f'<section class="card" data-kind="organism"><h2>{esc(name)}'
                   f'<small>図解 ｜ {org["w"]}×{org["h"]}px</small></h2>'
-                  f'<div class="frame" style="width:{org["w"]}px;height:{org["h"]}px;background:{hexc("lt1")}">'
+                  f'<div class="frame" style="width:{org["w"]}px;height:{org["h"]}px;background:{hexc(org.get("bg", "lt1"))}">'
                   f'{organism_html(org)}</div></section>')
 
     html = TEMPLATE.replace("{{CARDS}}", cards).replace("{{FONT}}", TOKENS["font"]["family"])
@@ -267,13 +356,23 @@ TEMPLATE = """<!DOCTYPE html>
  .el .t{display:block;width:100%}
  .el.pill{border:2px solid currentColor;border-radius:999px;justify-content:center}
  .empty{font-size:20px}
- svg.el{position:absolute;overflow:visible}
+ svg.el{position:absolute;overflow:visible;pointer-events:none} svg.el path{pointer-events:stroke}
  .guides{position:absolute;inset:0;pointer-events:none;display:none}
  .guide{position:absolute;background:rgba(200,60,60,.55)}
  body.guides-on .guides{display:block}
  body.outline-on .el{outline:1px solid rgba(0,120,255,.45)}
  .el:hover{outline:2px solid #0078ff !important}
  .el.warn{outline:2px solid #e2773a}
+ .palette{background:#fff;padding:16px 20px;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:1400px}
+ .palette h3{font-size:13px;margin:14px 0 6px}
+ .sws{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;font-size:12px}
+ .sw{cursor:pointer} .chip{height:64px;border-radius:4px;border:1px solid rgba(0,0,0,.08);display:flex;align-items:flex-end;padding:6px;font-size:13px;font-weight:700;margin-bottom:4px}
+ .row{display:flex;gap:28px;flex-wrap:wrap}
+ .bars{display:flex;gap:18px;align-items:flex-end;height:190px;padding:0 8px;border-bottom:1px solid #ccc}
+ .grp{display:flex;gap:3px;align-items:flex-end;position:relative;padding-bottom:0}
+ .grp span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:12px;color:#666}
+ .bar{width:16px}
+ .ground{width:720px;padding:28px 36px;display:flex;flex-direction:column;gap:8px;white-space:nowrap;zoom:.58}
  .el.warn::after{content:attr(data-warn);position:absolute;right:0;top:100%;font-size:18px;color:#e2773a;
                  font-weight:700;white-space:nowrap}
  body.warn-off .el.warn{outline:none} body.warn-off .el.warn::after{display:none}

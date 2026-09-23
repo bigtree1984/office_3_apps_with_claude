@@ -33,6 +33,10 @@ import json as _json
 _TOKENS = _json.loads((BRAND / "design/tokens.json").read_text())
 COLORS = _TOKENS["colors"]
 FONT = _TOKENS["font"]["family"]
+# 見出しだけ別の書体にしたいとき（例：見出しは明朝、本文はゴシック）は font.heading に書く。無ければ本文と同じ。
+# テーマの majorFont（見出し）／minorFont（本文）に分けて入れるので、人が PowerPoint で「見出しのフォント」を
+# 選んでも同じ書体になる。どの役割が見出し書体かは type_pptx.roles の "font": "heading" で決める
+FONT_HEADING = _TOKENS["font"].get("heading") or FONT
 # ブランドに関する文字列は brand ブロックが正。theme_name は、テーマ名だけ別にしたいとき用の任意の上書き
 BRAND_INFO = {**{"slug": "template", "url": "https://example.com", "logo": "assets/logo/logo.svg",
                  "meta": "0000-00-00 ｜ 所属 ｜ 作成者"},
@@ -78,18 +82,25 @@ def text_on(bg):
     return "lt1" if contrast("lt1", bg) >= contrast("dk1", bg) else "dk1"
 
 
-def font_path(style="Regular"):
+def role_family(role):
+    """文字の役割（名前か roles の dict）が使う書体。"font": "heading" なら見出し書体、それ以外は本文書体。"""
+    r = role if isinstance(role, dict) else _TOKENS["type_pptx"]["roles"][role]
+    return FONT_HEADING if r.get("font") == "heading" else FONT
+
+
+def font_path(style="Regular", family=None):
     """フォントの置き場所を返すだけ（存在するとは限らない）。"""
-    return FONT_DIR / f'{FONT.replace(" ", "")}-{style}.ttf'
+    return FONT_DIR / f'{(family or FONT).replace(" ", "")}-{style}.ttf'
 
 
-def font_file(style="Regular"):
+def font_file(style="Regular", family=None):
     """フォントの実ファイル。無ければ、何をすればいいかを書いて止まる（生のトレースを出さない）。"""
-    path = font_path(style)
+    family = family or FONT
+    path = font_path(style, family)
     if not path.exists():
         raise SystemExit(
             f"\nフォントが見つかりません: {path}\n"
-            f"  {FONT} の「静的フォント」（Regular / Bold）を用意してください。\n"
+            f"  {family} の「静的フォント」（Regular / Bold）を用意してください。\n"
             "  ・Google Fonts からダウンロード → static フォルダの .ttf を使う（可変フォントは埋め込みに使えません）\n"
             f"  ・置き場所は ~/Library/Fonts、または OFFICE3_FONT_DIR で指定\n"
             "  ・**フォントを用意せずに一通り動かしたいときは --no-embed** を付けてください\n"
@@ -105,8 +116,8 @@ def shadow(dist, blur, alpha):
 
 def theme():
     clr = "".join(f'<a:{k}><a:srgbClr val="{v}"/></a:{k}>' for k, v in COLORS.items())
-    fonts = "".join(f'<a:{k}><a:latin typeface="{FONT}"/><a:ea typeface="{FONT}"/><a:cs typeface=""/></a:{k}>'
-                    for k in ("majorFont", "minorFont"))
+    fonts = "".join(f'<a:{k}><a:latin typeface="{f}"/><a:ea typeface="{f}"/><a:cs typeface=""/></a:{k}>'
+                    for k, f in (("majorFont", FONT_HEADING), ("minorFont", FONT)))
     solid = '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
     ln = "".join(f'<a:ln w="{w}"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
                  for w in (6350, 12700, 19050))
@@ -326,9 +337,21 @@ def make_eot(ttf_path):
     return struct.pack("<II", size, len(data)) + header + data
 
 
-EMBED = [  # (typeface, [(slot, ttf)])
-    ("Noto Sans JP", [("regular", "NotoSansJP-Regular.ttf"), ("bold", "NotoSansJP-Bold.ttf")]),
-]
+# (typeface, [(slot, ttf)])。書体は tokens.json から（見出し書体が別なら2書体×2ウェイト）。
+# 以前は "Noto Sans JP" を直書きしていたため、font.family を変えても本文の書体が埋め込まれなかった
+# **使っているウェイトだけ**を入れる：見出し書体が Bold しか使わないなら Regular は入れない。
+# 理由：和文フォントは1ウェイト 5〜8MB あり、4つ入れると 1ファイル 16MB になった（2書体目の Regular は1文字も使っていなかった）。
+# 本文書体は Regular / Bold の両方を必ず入れる（人がスライド上で太字を切り替えるため）。
+def _embed_list():
+    used = {}
+    for r in _TOKENS["type_pptx"]["roles"].values():
+        used.setdefault(role_family(r), set()).add("bold" if r["weight"] == "Bold" else "regular")
+    used[FONT] = {"regular", "bold"}
+    return [(fam, [(slot, f'{fam.replace(" ", "")}-{slot.capitalize()}.ttf') for slot in ("regular", "bold") if slot in used[fam]])
+            for fam in dict.fromkeys((FONT, FONT_HEADING))]
+
+
+EMBED = _embed_list()
 
 
 # ---------------------------------------------------------------- package
@@ -353,7 +376,7 @@ def build(path, template, embed):
             refs = ""
             for slot, ttf in slots:
                 n += 1
-                files[f"ppt/fonts/font{n}.fntdata"] = make_eot(font_file(ttf.split("-")[-1].replace(".ttf", "")))
+                files[f"ppt/fonts/font{n}.fntdata"] = make_eot(font_file(ttf.split("-")[-1].replace(".ttf", ""), face))
                 pres_rels.append(("font", f"fonts/font{n}.fntdata"))
                 refs += f'<p:{slot} r:id="rId{len(pres_rels)}"/>'
             font_xml += f'<p:embeddedFont><p:font typeface="{face}" charset="-128"/>{refs}</p:embeddedFont>'

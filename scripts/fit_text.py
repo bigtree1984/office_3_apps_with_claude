@@ -23,11 +23,11 @@ SKIPPED = [False]
 
 
 @functools.lru_cache(maxsize=None)
-def _font(weight):
+def _font(weight, family=None):
     """フォントが無ければ None を返す。**測れないだけで、ビルドは止めない**
     （フォント未導入でも --no-embed で一通り動かせるようにするため）。"""
     from fontTools.ttLib import TTFont
-    path = bp.font_path("Bold" if weight == "Bold" else "Regular")
+    path = bp.font_path("Bold" if weight == "Bold" else "Regular", family)
     if not path.exists():
         if not SKIPPED[0]:
             SKIPPED[0] = True
@@ -37,10 +37,11 @@ def _font(weight):
     return f.getBestCmap(), f["hmtx"], f["head"].unitsPerEm
 
 
-def width_pt(text, weight, pt):
+def width_pt(text, weight, pt, family=None):
     """文字列の表示幅（pt）。フォントの字送り（advance width）から計算する。
+    family は書体名（見出しと本文で書体が違うとき）。省略すると本文書体。
     フォントが無いときは 0（＝はみ出さない扱い）。"""
-    got = _font("Bold" if weight == "Bold" else "Regular")
+    got = _font("Bold" if weight == "Bold" else "Regular", family)
     if got is None:
         return 0.0
     cmap, hmtx, upm = got
@@ -56,17 +57,17 @@ def fits(text, style, box_px, roles=None):
     roles = roles or bp._TOKENS["type_pptx"]["roles"]
     r = roles[style]
     box_pt = box_px / PX_PER_PT
-    worst = max((width_pt(line, r["weight"], r["pt"]) for line in text.split("\n")), default=0.0)
+    worst = max((width_pt(line, r["weight"], r["pt"], bp.role_family(r)) for line in text.split("\n")), default=0.0)
     return worst <= box_pt, worst - box_pt, (worst / box_pt if box_pt else 0)
 
 
-def wrap_lines(text, weight, pt, box_pt):
+def wrap_lines(text, weight, pt, box_pt, family=None):
     """折り返した結果の行を返す。日本語は単語区切りが無いので1文字ずつ積む。"""
     out = []
     for para in text.split("\n"):
         line = ""
         for ch in para:
-            if line and width_pt(line + ch, weight, pt) > box_pt:
+            if line and width_pt(line + ch, weight, pt, family) > box_pt:
                 out.append(line)
                 line = ch
             else:
@@ -79,7 +80,7 @@ def fits_box(text, style, w_px, h_px, roles=None):
     """折り返しありで、幅×高さの枠に収まるか。(収まるか, 必要な行数, 入る行数) を返す。"""
     roles = roles or bp._TOKENS["type_pptx"]["roles"]
     r = roles[style]
-    need = len(wrap_lines(text, r["weight"], r["pt"], w_px / PX_PER_PT))
+    need = len(wrap_lines(text, r["weight"], r["pt"], w_px / PX_PER_PT, bp.role_family(r)))
     avail = max(1, round(h_px / (r["pt"] * r["line"] / 100 * PX_PER_PT)))
     return need <= avail, need, avail
 
@@ -112,8 +113,8 @@ def limits(roles=None):
     out = {}
     for key, r in roles.items():
         out[key] = {"pt": r["pt"], "weight": r["weight"],
-                    "full_per_100px": 100 / PX_PER_PT / width_pt("あ", r["weight"], r["pt"]),
-                    "half_per_100px": 100 / PX_PER_PT / width_pt("A", r["weight"], r["pt"])}
+                    "full_per_100px": 100 / PX_PER_PT / width_pt("あ", r["weight"], r["pt"], bp.role_family(r)),
+                    "half_per_100px": 100 / PX_PER_PT / width_pt("A", r["weight"], r["pt"], bp.role_family(r))}
     return out
 
 

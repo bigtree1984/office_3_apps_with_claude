@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_potx  # noqa: E402  (shared theme)
 import build_potx_figma as bpf  # noqa: E402  (レイアウトの並び順)
 
-BODY_LAYOUT = [l["name"] for l in bpf.SPEC["layouts"]].index("06_本文") + 1
+BODY_LAYOUT = bpf.BODY_LAYOUT_NO
 
 ROOT = Path(__file__).resolve().parent.parent
 BRAND = Path(os.environ.get("OFFICE3_BRAND") or ROOT / "bigtree").resolve()   # brand values (tokens, assets, templates)
@@ -86,9 +86,15 @@ def label_on(fill):
     return {"lt1": "lt1", "dk1": "tx1"}[build_potx.text_on(fill)]
 
 
-def dlbls(kind, n, highlighted, fmt, clr="tx1"):
-    """値ラベル（CHART_RULES.md §3）。棒は6カテゴリ以下なら全点、折れ線は両端だけ。"""
+def dlbls(kind, n, highlighted, fmt, clr="tx1", point=None):
+    """値ラベル（CHART_RULES.md §3）。棒は6カテゴリ以下なら全点、折れ線は両端だけ。
+    point：強調した1点の位置。棒が7本以上（全点にはラベルを付けない）でも、**強調した点には必ず付ける**（§3 の表の最終行）"""
     txt = TXT.format(sz=SZ, clr=ink())
+    if kind in ("bar", "barh") and n > 6 and point is not None:
+        return (f'<c:dLbls><c:dLbl><c:idx val="{point}"/>{txt}<c:dLblPos val="outEnd"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
+                '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbl>'
+                '<c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/><c:showSerName val="0"/>'
+                '<c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
     if kind in ("bar", "barh") and n <= 6:
         return (f'<c:dLbls>{txt}<c:dLblPos val="outEnd"/><c:showLegendKey val="0"/><c:showVal val="1"/>'
                 '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>')
@@ -200,9 +206,10 @@ def chart_xml(ch, sheet, embedded):
         marker = '<c:marker><c:symbol val="circle"/><c:size val="6"/></c:marker>' if line_like else ""
         auto_fill = f"accent{si + 1}"            # 色を指定しない系列は accent1 から順に当たる
         lbl_clr = "lt1" if kind == "waterfall" else label_on(auto_fill)
+        pt = (ch["cats"].index(ch["point"][1]) if ch.get("point") and ch["point"][0] == sname else None)
         lbl = dlbls("combo-line" if line_like else kind, n,
                     (si == 0) if kind == "waterfall" else (sname == ch.get("highlight")), fmt,
-                    clr=lbl_clr)
+                    clr=lbl_clr, point=pt)
         series_xml.append(
             f'<c:ser><c:idx val="{si}"/><c:order val="{si}"/>'
             f'<c:tx><c:strRef><c:f>{q}!${c}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>{esc(sname)}</c:v></c:pt></c:strCache></c:strRef></c:tx>'
@@ -243,7 +250,7 @@ def chart_xml(ch, sheet, embedded):
     val_deleted = 1 if (kind in ("bar", "barh") and n <= 6) or kind == "waterfall" else 0
     def cat_ax(axid, crossax, delete=0):
         # 横棒は既定だと最初の項目が一番下にくるので、軸を逆向きにして上から読める順にする
-        orient = "maxMin" if kind == "barh" else "minMax"
+        orient = "maxMin" if kind in ("barh", "bar100") else "minMax"   # 100%積み上げ横棒も同じ（7月→8月を上から）
         axis_line = ink(False)          # 軸線も地色に合わせる（暗地だと濃い線が見えない）
         return (f'<c:catAx><c:axId val="%s"/><c:scaling><c:orientation val="{orient}"/></c:scaling>'
                 '<c:delete val="%s"/><c:axPos val="%s"/><c:numFmt formatCode="General" sourceLinked="1"/>'
@@ -279,10 +286,11 @@ def chart_xml(ch, sheet, embedded):
                                            minv=int((lo - (hi - lo) * 0.6) // step * step))
     else:
         axes = cat_ax(1001, 1002) + val_ax(1002, 1001, ch["fmt"], delete=val_deleted,
-                                           crosses=("max" if kind == "barh" else "autoZero"),
+                                           crosses=("max" if kind in ("barh", "bar100") else "autoZero"),
                                            zero=(kind in ("bar", "barh", "bar100", "waterfall")), maxv=(1 if kind == "bar100" else None))
     # 直接ラベルを置く折れ線・複合では凡例を出さない（CHART_RULES.md §5）
-    legend = ("" if kind in ("line", "combo", "waterfall")
+    # 系列が1つのときも出さない（凡例が項目ごとに並んでしまい、軸と同じことを二度書くことになる）
+    legend = ("" if kind in ("line", "combo", "waterfall") or len(ch["series"]) == 1
               else '<c:legend><c:legendPos val="b"/><c:overlay val="0"/>' + TXT.format(sz=SZ, clr=ink()) + '</c:legend>')
     ext = '<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>' if embedded else ""
     return (XML + f'<c:chartSpace {C_NS}><c:date1904 val="0"/><c:lang val="ja-JP"/><c:roundedCorners val="0"/>'
@@ -418,8 +426,8 @@ def sheet_xml(ch):
 
 
 STYLES = (XML + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-          '<fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Noto Sans JP"/><family val="2"/><scheme val="minor"/></font>'
-          '<font><b/><sz val="11"/><color theme="1"/><name val="Noto Sans JP"/><family val="2"/><scheme val="minor"/></font></fonts>'
+          '<fonts count="2"><font><sz val="11"/><color theme="1"/><name val="' + build_potx.FONT + '"/><family val="2"/><scheme val="minor"/></font>'
+          '<font><b/><sz val="11"/><color theme="1"/><name val="' + build_potx.FONT + '"/><family val="2"/><scheme val="minor"/></font></fonts>'
           '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
           '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
           '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'

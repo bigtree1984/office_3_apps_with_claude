@@ -33,7 +33,13 @@ BRAND_NAME = bp.BRAND_INFO["name"]         # ブランド名の正は tokens.jso
 
 # 本文レイアウトの地色が、この資料が明地か暗地かの判断材料。
 # 暗地にしたのにグラフ・表・図解が明地のままだと、文字が地色と同化して消える（実際に踏まれた）
-BODY_BG = next((l["bg"] for l in SPEC["layouts"] if l["name"].startswith("06_")), "lt1")
+# 本文レイアウトは `"role": "body"` の印で探す（無ければ従来の名前 "06_本文"）。
+# 名前で探していたため、レイアウトを並べ替えたり名前を変えたりすると、マスター・グラフ・表・図解の
+# 5か所が同時に「06_本文 が無い」で止まった。印なら名前も順番も自由に変えられる
+BODY_LAYOUT = (next((l for l in SPEC["layouts"] if l.get("role") == "body"), None)
+               or next(l for l in SPEC["layouts"] if l["name"] == "06_本文"))
+BODY_LAYOUT_NO = SPEC["layouts"].index(BODY_LAYOUT) + 1     # slideLayoutN.xml の N
+BODY_BG = BODY_LAYOUT.get("bg", "lt1")
 # その地色の上で読める文字の**トークン名**を聞く。トークンの意味（dk1＝文字色）は
 # 配色を反転した人でも保つので、名前で受け取るのが安全。
 # 明るさで直に判定しようとすると、トークン名と実際の色が入れ替わったブランドで逆を引く（実際に踏んだ）
@@ -59,8 +65,11 @@ def xfrm(box):
 def rpr(style, color, tag="a:defRPr"):
     s = STYLES[style]
     b = ' b="1"' if s["weight"] == "Bold" else ' b="0"'
+    # 見出し書体の役割（"font": "heading"）はテーマの見出しフォント（+mj）を指す。書体名は直書きしない
+    # （直書きすると、テーマのフォントを変えても文字が追随しない）
+    mj = s.get("font") == "heading"
     font = ('<a:latin typeface="Noto Sans JP Black"/><a:ea typeface="Noto Sans JP Black"/>' if s["weight"] == "Black"
-            else '<a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/>')
+            else f'<a:latin typeface="+{"mj" if mj else "mn"}-lt"/><a:ea typeface="+{"mj" if mj else "mn"}-ea"/>')
     return f'<{tag} sz="{s["pt"] * 100}"{b}>{clr(color)}{font}</{tag.split()[0]}>'
 
 
@@ -280,6 +289,8 @@ def logo(item):
 
 # ---------------------------------------------------------------- key visual: picture cropped to the Figma curve
 def picture(item, rid):
+    if "mask" not in item:
+        return picture_rect(item, rid)
     m = item["mask"]
     ox, oy = m["origin"]
     toks = m["curve"].replace(",", " ").split()
@@ -315,14 +326,60 @@ def picture(item, rid):
             f'<a:pathLst><a:path w="{e(box[2])}" h="{e(box[3])}">{segs}</a:path></a:pathLst></a:custGeom></p:spPr></p:pic>')
 
 
+def picture_rect(item, rid):
+    """曲線のマスクを使わない写真。`box`（見える範囲）の中に、`fill_box`（画像を置く位置と大きさ）の
+    画像を切り抜いて入れる。fill_box は box より大きくてよく、はみ出した分が切り落とされる。
+    切り抜きは srcRect で持つので、PowerPoint 上で人が「トリミング」から位置を直せる。"""
+    box = item.get("box") or item["fill_box"]
+    fx, fy, fw, fh = item["fill_box"]
+    iw, ih = item["img_px"]
+    sc = max(fw / iw, fh / ih)                      # fill_box を画像の比率のまま覆う（cover）
+    dw, dh = iw * sc, ih * sc
+    ix, iy = fx - (dw - fw) / 2, fy - (dh - fh) / 2
+    l, t = (box[0] - ix) / dw, (box[1] - iy) / dh
+    r, b = (ix + dw - (box[0] + box[2])) / dw, (iy + dh - (box[1] + box[3])) / dh
+    src = f'<a:srcRect l="{int(l * 100000)}" t="{int(t * 100000)}" r="{int(r * 100000)}" b="{int(b * 100000)}"/>'
+    alt = bp_esc(item.get("alt") or item["name"])
+    return (f'<p:pic><p:nvPicPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}" descr="{alt}"/>'
+            '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr userDrawn="1"/></p:nvPicPr>'
+            f'<p:blipFill><a:blip r:embed="{rid}"/>{src}<a:stretch><a:fillRect/></a:stretch></p:blipFill>'
+            f'<p:spPr>{xfrm(box)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>')
+
+
+def grad(g):
+    """グラデーションの塗り。stops は [[位置0〜1, 色トークン, 不透明度0〜1], ...]、angle は度（0＝左→右、90＝上→下）。
+    色はテーマ参照のまま（配色を変えると追随する）。写真の上に地色を溶かす用途を想定"""
+    gs = "".join(f'<a:gs pos="{int(pos * 100000)}"><a:schemeClr val="{SCHEME.get(c, c)}"><a:alpha val="{int(a * 100000)}"/></a:schemeClr></a:gs>'
+                 for pos, c, a in g["stops"])
+    return f'<a:gradFill rotWithShape="1"><a:gsLst>{gs}</a:gsLst><a:lin ang="{int(g.get("angle", 0) * 60000)}" scaled="0"/></a:gradFill>'
+
+
+def lines(item):
+    """細い線の束（光の筋・ガラスの稜線など）。segments は [[x1, y1, x2, y2], ...]（フレームの px）。
+    1つの図形にまとめる（線ごとに図形を作ると、選択や移動で人がばらばらにしてしまう）。
+    線の太さは w_px（2px＝1pt）、色は color / opacity"""
+    xs = [v for sgm in item["segments"] for v in (sgm[0], sgm[2])]
+    ys = [v for sgm in item["segments"] for v in (sgm[1], sgm[3])]
+    x0, y0 = min(xs), min(ys)
+    w, h = max(max(xs) - x0, 1), max(max(ys) - y0, 1)
+    P = lambda x, y: f'<a:pt x="{e(x - x0)}" y="{e(y - y0)}"/>'
+    body = "".join(f'<a:moveTo>{P(a, b)}</a:moveTo><a:lnTo>{P(c, d)}</a:lnTo>' for a, b, c, d in item["segments"])
+    return (f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}"/><p:cNvSpPr/><p:nvPr userDrawn="1"/></p:nvSpPr>'
+            f'<p:spPr>{xfrm([x0, y0, w, h])}<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/>'
+            f'<a:pathLst><a:path w="{e(w)}" h="{e(h)}" fill="none">{body}</a:path></a:pathLst></a:custGeom><a:noFill/>'
+            f'<a:ln w="{e(item.get("w_px", 1))}">{clr(item.get("color", "dk1"), item.get("opacity"))}</a:ln></p:spPr></p:sp>')
+
+
 # ---------------------------------------------------------------- shapes
 def rect(item):
     # PLAYBOOK §3-8 は「キービジュアルが無ければ kind:"picture" を "rect" に置き換える」と案内している。
     # picture の item は box/color ではなく fill_box/fill を持つため、どちらの綴りも受ける。
     box = item.get("box") or item["fill_box"]
     color = item.get("color") or item.get("fill") or "lt2"
+    # 透明度（opacity）とグラデーション（gradient）も受ける。以前は opacity を黙って捨てていた（プレビューだけ半透明）
+    paint = grad(item["gradient"]) if item.get("gradient") else clr(color, item.get("opacity"))
     return (f'<p:sp><p:nvSpPr><p:cNvPr id="{bp.nid()}" name="{item["name"]}"/><p:cNvSpPr/><p:nvPr userDrawn="1"/></p:nvSpPr>'
-            f'<p:spPr>{xfrm(box)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>{clr(color)}<a:ln><a:noFill/></a:ln></p:spPr>'
+            f'<p:spPr>{xfrm(box)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>{paint}<a:ln><a:noFill/></a:ln></p:spPr>'
             '<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="ja-JP"/></a:p></p:txBody></p:sp>')
 
 
@@ -377,7 +434,9 @@ def placeholder(item, on_slide=False, content=None, master=False):
     attr = ph_attr(item)
     # 折り返しをオフにしてあるので、長すぎる文字は枠の外へ出る。作った時点で気づけるように警告する
     if item.get("text") and item["ph"] not in ("obj", "sldNum"):
-        ft.warn(item["text"], item["style"], item["box"][2], where=item["name"])
+        # 枠線つきの区分表示（pill）は左右の内側余白ぶん狭い。差し引かずに測ると、枠の線に文字が重なっても通ってしまう
+        room = item["box"][2] - (2 * item["pill"]["pad"][0] if item.get("pill") else 0)
+        ft.warn(item["text"], item["style"], room, where=item["name"])
     if on_slide:  # a slide inherits position/format from the layout
         body = content if content is not None else paras(item.get("text", ""))
         if item["ph"] == "sldNum":
@@ -455,7 +514,7 @@ def table_styles():
 # ---------------------------------------------------------------- master / layouts
 def master(n_layouts):
     bp._id[0] = 1
-    body_layout = next(l for l in SPEC["layouts"] if l["name"] == "06_本文")
+    body_layout = BODY_LAYOUT
     it = {i["name"]: i for i in body_layout["items"]}
     # master placeholders: explicit types (a master body placeholder must be type="body"), no custom prompt
     shapes = [placeholder({**it["Title"], "text": "マスター タイトル"}, master=True),
@@ -493,6 +552,8 @@ def layout(spec):
             shapes.append(logo(it))
         elif k == "rect":
             shapes.append(rect(it))
+        elif k == "lines":
+            shapes.append(lines(it))
         elif k == "text":
             shapes.append(text(with_brand(with_sample(it, spec["name"]))))
         elif k == "ph":
@@ -536,8 +597,14 @@ def R(t):
     return f"{REL}/{t}"
 
 
-def build(path, template, embed):
+def build(path, template, embed, slides=None):
+    """slides を渡すと、見本スライドの代わりにそのスライドを入れる（資料そのものを組むとき）。
+    slides は [{"layout_no": N, "xml": スライドXML, "rels": [(関係の種類URI, 参照先)], "files": {パス: 中身},
+    "ct": [(パーツ名, コンテンツタイプ)], "defaults": [(拡張子, コンテンツタイプ)]}, ...]。
+    rels は rId2 から順に振られる（rId1 はレイアウト）。テンプレートと同じ部品（マスター・テーマ・表スタイル・
+    フォント埋め込み）で組むので、資料とテンプレートの見た目がずれない"""
     files, over = {}, []
+    extra_defaults = []
     lays = [layout(s) for s in SPEC["layouts"]]
     media = {}
     for i, (xml, img) in enumerate(lays, 1):
@@ -558,7 +625,18 @@ def build(path, template, embed):
     pres_rels = [(R("slideMaster"), "slideMasters/slideMaster1.xml"), (R("theme"), "theme/theme1.xml"),
                  (R("presProps"), "presProps.xml"), (R("viewProps"), "viewProps.xml"), (R("tableStyles"), "tableStyles.xml")]
     sld_ids = ""
-    if not template:
+    if not template and slides is not None:
+        for i, sl in enumerate(slides, 1):
+            files[f"ppt/slides/slide{i}.xml"] = sl["xml"]
+            files[f"ppt/slides/_rels/slide{i}.xml.rels"] = rels_xml(
+                [(R("slideLayout"), f'../slideLayouts/slideLayout{sl["layout_no"]}.xml')] + list(sl.get("rels", [])))
+            files.update(sl.get("files", {}))
+            over += list(sl.get("ct", []))
+            extra_defaults += [d for d in sl.get("defaults", []) if d not in extra_defaults]
+            over.append((f"/ppt/slides/slide{i}.xml", f"{CT}.presentationml.slide+xml"))
+            pres_rels.append((R("slide"), f"slides/slide{i}.xml"))
+            sld_ids += f'<p:sldId id="{255 + i}" r:id="rId{len(pres_rels)}"/>'
+    elif not template:
         for i, s in enumerate(SPEC["layouts"], 1):
             files[f"ppt/slides/slide{i}.xml"] = sample_slide(s)
             files[f"ppt/slides/_rels/slide{i}.xml.rels"] = rels_xml([(R("slideLayout"), f"../slideLayouts/slideLayout{i}.xml")])
@@ -572,7 +650,7 @@ def build(path, template, embed):
             refs = ""
             for slot, ttf in slots:
                 n += 1
-                files[f"ppt/fonts/font{n}.fntdata"] = bp.make_eot(bp.font_file(ttf.split("-")[-1].replace(".ttf", "")))
+                files[f"ppt/fonts/font{n}.fntdata"] = bp.make_eot(bp.font_file(ttf.split("-")[-1].replace(".ttf", ""), face))
                 pres_rels.append((R("font"), f"fonts/font{n}.fntdata"))
                 refs += f'<p:{slot} r:id="rId{len(pres_rels)}"/>'
             font_xml += f'<p:embeddedFont><p:font typeface="{face}" charset="-128"/>{refs}</p:embeddedFont>'
@@ -611,6 +689,7 @@ def build(path, template, embed):
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
         '<Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>'
         '<Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="fntdata" ContentType="application/x-fontdata"/>'
+        + "".join(f'<Default Extension="{x}" ContentType="{c}"/>' for x, c in extra_defaults if x not in ("png", "jpg", "fntdata"))
         + "".join(f'<Override PartName="{p}" ContentType="{c}"/>' for p, c in over) + '</Types>')
     order = ["[Content_Types].xml", "_rels/.rels"] + [k for k in files if k not in ("[Content_Types].xml", "_rels/.rels")]
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
