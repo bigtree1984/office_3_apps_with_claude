@@ -131,7 +131,7 @@ def shape(it, ox, oy, items=None, idx=0):
         geom = path_xml(it, ox, oy)
     line = (f'<a:ln w="{e(it["strokeW"])}" cap="flat">{clr(it["stroke"])}<a:miter lim="800000"/></a:ln>' if it.get("stroke")
             else "<a:ln><a:noFill/></a:ln>")
-    return f'<p:sp>{nv}<p:spPr>{bpf.xfrm(box)}{geom}{fill(it)}{line}</p:spPr></p:sp>'
+    return f'<p:sp>{nv}<p:spPr>{bpf.xfrm(box, it.get("rot", 0))}{geom}{fill(it)}{line}</p:spPr></p:sp>'
 
 
 def group(name, org, ox, oy, bg=None):

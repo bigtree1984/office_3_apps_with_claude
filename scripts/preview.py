@@ -280,7 +280,7 @@ def organism_html(org):
                             fill, it.get("align", "LEFT"), op, wrap=True,
                             bg=under_fill(org["items"], idx, [x, y, w, h]))
         elif t == "ELLIPSE":
-            body += el(name, x, y, w, h, "", paint(it) + "border-radius:50%;")
+            body += el(name, x, y, w, h, "", paint(it) + "border-radius:50%;" + spin(it))
         elif t in ("VECTOR", "POLYGON") and it.get("path"):
             # パスはフレーム座標なので、そのまま SVG に流し込む
             stroke = (f'stroke="{hexc(it["stroke"])}" stroke-width="{it.get("strokeW", 1)}"'
@@ -291,8 +291,15 @@ def organism_html(org):
                      f'data-name="{esc(name)}" data-box="{x:.0f}, {y:.0f}, {w:.0f}, {h:.0f}">'
                      f'<path d="{esc(it["path"])}" fill="{fill_attr}" {stroke}/></svg>')
         else:
-            body += el(name, x, y, w, h, "", paint(it))
+            body += el(name, x, y, w, h, "", paint(it) + spin(it))
     return body
+
+
+def spin(it):
+    """図形の傾き。出力側（build_potx_figma.xfrm）と同じ向き・同じ中心で回す。
+    片方だけ傾くと、プレビューと実物で意味の違う絵になる。"""
+    r = it.get("rot", 0)
+    return f"transform:rotate({-r}deg);" if r else ""
 
 
 def paint(it):

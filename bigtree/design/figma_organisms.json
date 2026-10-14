@@ -1,5 +1,5 @@
 {
-  "_source": "Figma 'Office Design System (Bigtree Lab)' fileKey 0MH0fNiTtcID0nw201lJkx, page '02 PowerPoint', frames organism/*. Exported by Claude via use_figma on 2026-09-20（全16種、2026-09-20 に O-B22/O-B23 を追加）. Units px, origin = organism frame top-left. Paths are already in frame coordinates.",
+  "_source": "Figma 'Office Design System (Bigtree Lab)' fileKey 0MH0fNiTtcID0nw201lJkx, page '02 PowerPoint', frames organism/*. Exported by Claude via use_figma on 2026-09-20（全16種、2026-09-20 に O-B22/O-B23 を追加）. Units px, origin = organism frame top-left. Paths are already in frame coordinates.／2026-10-14 に O-B24・O-B25・O-B26 を追加（回転は中心基準に正規化して書き出し）。",
   "organisms": {
     "O-B5 プロセスフロー（グルーピング）": {
       "w": 1296,
@@ -4785,6 +4785,539 @@
           "fill": "dk1",
           "fillOpacity": 1,
           "text": "410",
+          "style": "補足・グラフ・表",
+          "align": "LEFT"
+        }
+      ]
+    },
+    "O-B24 逆転（2つの推移の交差）": {
+      "w": 1296,
+      "h": 463,
+      "items": [
+        {
+          "name": "Axis",
+          "type": "RECTANGLE",
+          "x": 0,
+          "y": 372,
+          "w": 1060,
+          "h": 2,
+          "fill": "accent5"
+        },
+        {
+          "name": "Drop_交点",
+          "type": "RECTANGLE",
+          "x": 570.74,
+          "y": 210.13,
+          "w": 2,
+          "h": 161.87,
+          "fill": "accent5"
+        },
+        {
+          "name": "Line_旧",
+          "type": "VECTOR",
+          "x": 0,
+          "y": 70.8,
+          "w": 1060,
+          "h": 248.4,
+          "stroke": "accent3",
+          "strokeW": 4,
+          "path": "M0 70.8 L259.7 95.1 L660.38 227.4 L1060 319.2",
+          "open": true
+        },
+        {
+          "name": "Line_新",
+          "type": "VECTOR",
+          "x": 0,
+          "y": 60,
+          "w": 1060,
+          "h": 256.5,
+          "stroke": "accent1",
+          "strokeW": 5,
+          "path": "M0 316.5 L340.26 270.6 L719.74 151.8 L1060 60",
+          "open": true
+        },
+        {
+          "name": "Dot_交点",
+          "type": "ELLIPSE",
+          "x": 562.74,
+          "y": 189.13,
+          "w": 18,
+          "h": 18,
+          "fill": "accent6"
+        },
+        {
+          "name": "Label_交点",
+          "type": "TEXT",
+          "x": 461.74,
+          "y": 118.13,
+          "w": 220,
+          "h": 31,
+          "fill": "accent6",
+          "text": "2023年に逆転",
+          "style": "補足・グラフ・表",
+          "align": "CENTER"
+        },
+        {
+          "name": "Label_旧",
+          "type": "TEXT",
+          "x": 0,
+          "y": 17.8,
+          "w": 320,
+          "h": 39,
+          "fill": "dk2",
+          "text": "紙の申込書",
+          "style": "本文",
+          "align": "LEFT"
+        },
+        {
+          "name": "Label_新",
+          "type": "TEXT",
+          "x": 740,
+          "y": 7,
+          "w": 320,
+          "h": 39,
+          "fill": "accent1",
+          "text": "オンライン申込",
+          "style": "本文",
+          "align": "RIGHT"
+        },
+        {
+          "name": "Axis_始",
+          "type": "TEXT",
+          "x": 0,
+          "y": 384,
+          "w": 200,
+          "h": 22,
+          "fill": "dk2",
+          "text": "2021年",
+          "style": "最小（ページ番号等）",
+          "align": "LEFT"
+        },
+        {
+          "name": "Axis_交点",
+          "type": "TEXT",
+          "x": 471.74,
+          "y": 384,
+          "w": 200,
+          "h": 22,
+          "fill": "accent6",
+          "text": "2023年",
+          "style": "最小（ページ番号等）",
+          "align": "CENTER"
+        },
+        {
+          "name": "Axis_終",
+          "type": "TEXT",
+          "x": 860,
+          "y": 384,
+          "w": 200,
+          "h": 22,
+          "fill": "dk2",
+          "text": "2025年",
+          "style": "最小（ページ番号等）",
+          "align": "RIGHT"
+        },
+        {
+          "name": "Note",
+          "type": "TEXT",
+          "x": 0,
+          "y": 424,
+          "w": 1100,
+          "h": 31,
+          "fill": "dk2",
+          "text": "※ 各年の実数があるなら折れ線グラフで作る。これは数字が無く「逆転した」ことだけを言う図",
+          "style": "補足・グラフ・表",
+          "align": "LEFT"
+        }
+      ]
+    },
+    "O-B25 壁（進行が止まる）": {
+      "w": 1296,
+      "h": 440,
+      "items": [
+        {
+          "name": "Pill_1",
+          "type": "RECTANGLE",
+          "x": 0,
+          "y": 72,
+          "w": 420,
+          "h": 76,
+          "fill": "lt2"
+        },
+        {
+          "name": "PillText_1",
+          "type": "TEXT",
+          "x": 24,
+          "y": 90.5,
+          "w": 340,
+          "h": 39,
+          "fill": "dk1",
+          "text": "問い合わせの自動返信",
+          "style": "本文",
+          "align": "LEFT"
+        },
+        {
+          "name": "Arrow_1",
+          "type": "TEXT",
+          "x": 460,
+          "y": 86.5,
+          "w": 60,
+          "h": 47,
+          "fill": "accent1",
+          "text": "→",
+          "style": "リード文",
+          "align": "CENTER"
+        },
+        {
+          "name": "Pill_2",
+          "type": "RECTANGLE",
+          "x": 0,
+          "y": 182,
+          "w": 420,
+          "h": 76,
+          "fill": "lt2"
+        },
+        {
+          "name": "PillText_2",
+          "type": "TEXT",
+          "x": 24,
+          "y": 200.5,
+          "w": 340,
+          "h": 39,
+          "fill": "dk1",
+          "text": "テンプレートの整備",
+          "style": "本文",
+          "align": "LEFT"
+        },
+        {
+          "name": "Arrow_2",
+          "type": "TEXT",
+          "x": 460,
+          "y": 196.5,
+          "w": 60,
+          "h": 47,
+          "fill": "accent1",
+          "text": "→",
+          "style": "リード文",
+          "align": "CENTER"
+        },
+        {
+          "name": "Pill_3",
+          "type": "RECTANGLE",
+          "x": 0,
+          "y": 292,
+          "w": 420,
+          "h": 76,
+          "fill": "lt2"
+        },
+        {
+          "name": "PillText_3",
+          "type": "TEXT",
+          "x": 24,
+          "y": 310.5,
+          "w": 340,
+          "h": 39,
+          "fill": "dk1",
+          "text": "担当者を増やす",
+          "style": "本文",
+          "align": "LEFT"
+        },
+        {
+          "name": "Arrow_3",
+          "type": "TEXT",
+          "x": 460,
+          "y": 306.5,
+          "w": 60,
+          "h": 47,
+          "fill": "accent1",
+          "text": "→",
+          "style": "リード文",
+          "align": "CENTER"
+        },
+        {
+          "name": "WallLabel",
+          "type": "TEXT",
+          "x": 560,
+          "y": 21,
+          "w": 300,
+          "h": 39,
+          "fill": "dk2",
+          "text": "1日の対応件数の上限",
+          "style": "本文",
+          "align": "LEFT"
+        },
+        {
+          "name": "Beyond_card",
+          "type": "RECTANGLE",
+          "x": 760,
+          "y": 140,
+          "w": 420,
+          "h": 160,
+          "fill": "lt2",
+          "fillOpacity": 0.45
+        },
+        {
+          "name": "Beyond",
+          "type": "TEXT",
+          "x": 784,
+          "y": 200.5,
+          "w": 372,
+          "h": 39,
+          "fill": "dk2",
+          "text": "問い合わせを減らす",
+          "style": "本文",
+          "align": "LEFT"
+        },
+        {
+          "name": "Note",
+          "type": "TEXT",
+          "x": 0,
+          "y": 400,
+          "w": 900,
+          "h": 31,
+          "fill": "dk2",
+          "text": "※ 壁の向こう側は薄く見せる（届かなかった対象）",
+          "style": "補足・グラフ・表",
+          "align": "LEFT"
+        },
+        {
+          "name": "Brick_1a",
+          "type": "RECTANGLE",
+          "x": 560,
+          "y": 72,
+          "w": 83.8,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_1b",
+          "type": "RECTANGLE",
+          "x": 649.8,
+          "y": 72,
+          "w": 50.2,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_2a",
+          "type": "RECTANGLE",
+          "x": 560,
+          "y": 109.5,
+          "w": 50.2,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_2b",
+          "type": "RECTANGLE",
+          "x": 616.2,
+          "y": 109.5,
+          "w": 83.8,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_3a",
+          "type": "RECTANGLE",
+          "x": 560,
+          "y": 147,
+          "w": 83.8,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_3b",
+          "type": "RECTANGLE",
+          "x": 649.8,
+          "y": 147,
+          "w": 50.2,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_4a",
+          "type": "RECTANGLE",
+          "x": 560,
+          "y": 184.5,
+          "w": 50.2,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_4b",
+          "type": "RECTANGLE",
+          "x": 616.2,
+          "y": 184.5,
+          "w": 83.8,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_5a",
+          "type": "RECTANGLE",
+          "x": 560,
+          "y": 222,
+          "w": 83.8,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_5b",
+          "type": "RECTANGLE",
+          "x": 649.8,
+          "y": 222,
+          "w": 50.2,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_6a",
+          "type": "RECTANGLE",
+          "x": 560,
+          "y": 259.5,
+          "w": 50.2,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_6b",
+          "type": "RECTANGLE",
+          "x": 616.2,
+          "y": 259.5,
+          "w": 83.8,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_7a",
+          "type": "RECTANGLE",
+          "x": 560,
+          "y": 297,
+          "w": 83.8,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_7b",
+          "type": "RECTANGLE",
+          "x": 649.8,
+          "y": 297,
+          "w": 50.2,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_8a",
+          "type": "RECTANGLE",
+          "x": 560,
+          "y": 334.5,
+          "w": 50.2,
+          "h": 33.5,
+          "fill": "accent5"
+        },
+        {
+          "name": "Brick_8b",
+          "type": "RECTANGLE",
+          "x": 616.2,
+          "y": 334.5,
+          "w": 83.8,
+          "h": 33.5,
+          "fill": "accent5"
+        }
+      ]
+    },
+    "O-B26 積層（積み上がって破綻）": {
+      "w": 1296,
+      "h": 440,
+      "items": [
+        {
+          "name": "Slab_1",
+          "type": "RECTANGLE",
+          "x": 0,
+          "y": 326,
+          "w": 300,
+          "h": 34,
+          "fill": "accent5"
+        },
+        {
+          "name": "Slab_2",
+          "type": "RECTANGLE",
+          "x": 2,
+          "y": 280,
+          "w": 300,
+          "h": 34,
+          "fill": "accent5"
+        },
+        {
+          "name": "Slab_3",
+          "type": "RECTANGLE",
+          "x": 6,
+          "y": 234,
+          "w": 300,
+          "h": 34,
+          "fill": "accent5"
+        },
+        {
+          "name": "Slab_4",
+          "type": "RECTANGLE",
+          "x": 14,
+          "y": 188,
+          "w": 300,
+          "h": 34,
+          "fill": "accent5"
+        },
+        {
+          "name": "Slab_5",
+          "type": "RECTANGLE",
+          "x": 26,
+          "y": 142,
+          "w": 300,
+          "h": 34,
+          "fill": "accent5"
+        },
+        {
+          "name": "Slab_6",
+          "type": "RECTANGLE",
+          "x": 38.45,
+          "y": 106.42,
+          "w": 300,
+          "h": 34,
+          "fill": "accent5",
+          "rot": -4
+        },
+        {
+          "name": "StackLabel",
+          "type": "TEXT",
+          "x": 0,
+          "y": 45,
+          "w": 460,
+          "h": 39,
+          "fill": "dk1",
+          "text": "増え続ける運用ルール",
+          "style": "本文",
+          "align": "LEFT"
+        },
+        {
+          "name": "StackNote",
+          "type": "TEXT",
+          "x": 400,
+          "y": 212.5,
+          "w": 400,
+          "h": 31,
+          "fill": "dk2",
+          "text": "書いても書いても終わらない",
+          "style": "補足・グラフ・表",
+          "align": "LEFT"
+        },
+        {
+          "name": "Note",
+          "type": "TEXT",
+          "x": 0,
+          "y": 400,
+          "w": 900,
+          "h": 31,
+          "fill": "dk2",
+          "text": "※ 矩形の中は空にする（傾いた面の文字は読めない）",
           "style": "補足・グラフ・表",
           "align": "LEFT"
         }

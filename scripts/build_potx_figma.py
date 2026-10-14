@@ -57,9 +57,15 @@ def clr(var, alpha=None):
     return f'<a:solidFill><a:schemeClr val="{SCHEME.get(var, var)}">{a}</a:schemeClr></a:solidFill>'
 
 
-def xfrm(box):
+def xfrm(box, rot=0):
+    """rot は度。PowerPoint は 1/60000 度・時計回りで持つ（Figma の rotation は反時計回り）。
+
+    **傾きを落とすと意味が変わる図解がある**（積み上がって崩れそうな様子など。
+    整然と積まれると安定して見えて、言いたいことが逆になる）ので、ここで持たせる。
+    """
     x, y, w, h = box
-    return f'<a:xfrm><a:off x="{e(x)}" y="{e(y)}"/><a:ext cx="{e(w)}" cy="{e(h)}"/></a:xfrm>'
+    r = f' rot="{int(round(-rot * 60000))}"' if rot else ""
+    return f'<a:xfrm{r}><a:off x="{e(x)}" y="{e(y)}"/><a:ext cx="{e(w)}" cy="{e(h)}"/></a:xfrm>'
 
 
 def rpr(style, color, tag="a:defRPr"):
